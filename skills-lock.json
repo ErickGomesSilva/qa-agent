@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "terminal-ui-design": {
+      "source": "plyght/dotfiles",
+      "sourceType": "github",
+      "skillPath": "opencode/.config/opencode/skill/terminal-ui-design/SKILL.md",
+      "computedHash": "14567d59cc001daf006d9aeea83d5f2b5806e10ae02becf881980eef77b9b0ce"
+    }
+  }
+}

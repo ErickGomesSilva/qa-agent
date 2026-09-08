@@ -1,0 +1,43 @@
+{
+  "name": "qaagent",
+  "version": "1.3.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "QA Agent: requisitos → scripts Playwright → triagem LLM na falha",
+  "bin": {
+    "qaagent": "./bin/qaagent.mjs"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "cli": "tsx src/index.ts",
+    "serve": "tsx src/index.ts --serve",
+    "dev": "tsx watch --ignore ./data --ignore ./data/** src/index.ts --serve",
+    "mcp:discord": "tsx src/discord-mcp.ts",
+    "typecheck": "tsc --noEmit",
+    "audit": "tsx src/audit-cli.ts",
+    "reports": "tsx src/reports-cli.ts",
+    "k6": "tsx src/k6-cli.ts",
+    "deepen": "tsx src/deepen-cli.ts",
+    "unblock-massa": "tsx src/unblock-cli.ts",
+    "generate-massa": "tsx src/massa-cli.ts",
+    "tour": "tsx src/tour-cli.ts",
+    "postinstall": "node --import tsx src/post-install.ts"
+  },
+  "dependencies": {
+    "@cursor/sdk": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.20.0",
+    "@playwright/test": "^1.55.0",
+    "playwright-core": "^1.55.0",
+    "dotenv": "^16.6.1",
+    "tsx": "^4.20.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2"
+  }
+}

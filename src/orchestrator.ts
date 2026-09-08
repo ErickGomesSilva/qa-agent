@@ -1,0 +1,561 @@
+import { existsSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { ensureAuthSessionFresh } from "./auth-session.ts";
+import { config, resolveRequisitosPath } from "./config.ts";
+import {
+  countMassaCredentialMatches,
+  mergeMultiCredentials,
+  placeholderSenha,
+  primaryCredentials,
+  readMultiCredenciaisFromPath,
+  resolveCredentialsMdPath,
+} from "./credentials.ts";
+import { loadMassaManifest } from "./massa/manifest.ts";
+import { t } from "./i18n.ts";
+import { runGenerateAgent } from "./generate-agent.ts";
+import { runLogicAgent } from "./logic-agent.ts";
+import { runLogicExplore } from "./logic-explore.ts";
+import { runUserTour } from "./user-tour.ts";
+import { runPlaywright } from "./playwright-runner.ts";
+import { runK6, shouldRunK6 } from "./k6-runner.ts";
+import { activeRun, appendLog, getRun, saveRun } from "./store.ts";
+import { runCoverageAudit } from "./coverage-audit.ts";
+import { runDeepenAgent } from "./deepen-agent.ts";
+import { runReqSync } from "./req-sync.ts";
+import { runMassaUnblockBatch } from "./massa/runner.ts";
+import { applyMassaBatch, mergePlaywrightEnvWithMassa } from "./massa/apply.ts";
+import { prepareMassaForRun } from "./massa/generate.ts";
+import { playwrightEnvFromResolved } from "./playwright-env.ts";
+import { emitCoverageReportTerminal, writeCoverageReport } from "./coverage-report.ts";
+import { displayReportInTerminal } from "./open-report.ts";
+import type { CoverageAuditResult } from "./coverage-types.ts";
+import { runTriageAgent } from "./triage-agent.ts";
+import type {
+  CreateRunBody,
+  OrchestratorRun,
+  ResolvedCredentials,
+  RunMode,
+  StartRunOptions,
+} from "./types.ts";
+import {
+  credenciaisPath,
+  ensureChromium,
+  ensureWorkspace,
+  listSpecFiles,
+  scriptsDir,
+  syncRequisitos,
+  workspaceDir,
+} from "./workspace.ts";
+
+const cancelled = new Set<string>();
+const secrets = new Map<string, ResolvedCredentials>();
+
+function credPrimary(creds: ResolvedCredentials) {
+  return primaryCredentials(creds);
+}
+
+export function requestCancel(id: string): boolean {
+  const run = getRun(id);
+  if (!run) return false;
+  cancelled.add(id);
+  return true;
+}
+
+function resolveRunCredentials(body: CreateRunBody): ResolvedCredentials {
+  const defaultMd = credenciaisPath();
+  const mdPath = body.credentialsMd
+    ? resolveCredentialsMdPath(body.credentialsMd, scriptsDir())
+    : existsSync(defaultMd)
+      ? defaultMd
+      : undefined;
+  let fromMd: ReturnType<typeof readMultiCredenciaisFromPath> | undefined;
+  if (mdPath && existsSync(mdPath)) {
+    fromMd = readMultiCredenciaisFromPath(mdPath);
+    if (fromMd.accesses[0] && placeholderSenha(fromMd.accesses[0])) {
+      fromMd = {
+        ...fromMd,
+        accesses: fromMd.accesses.map((row, i) =>
+          i === 0 ? { ...row, senha: undefined } : row,
+        ),
+      };
+    }
+  }
+
+  const inlineAccess =
+    body.login && body.senha
+      ? [
+          {
+            authKind: body.authKind,
+            login: body.login ?? body.email,
+            senha: body.senha,
+          },
+        ]
+      : undefined;
+
+  return mergeMultiCredentials([
+    fromMd,
+    {
+      baseUrl: body.baseUrl,
+      accessCount: inlineAccess?.length,
+      accesses: inlineAccess,
+    },
+  ]);
+}
+
+export async function startRun(
+  body: CreateRunBody,
+  opts: StartRunOptions = {},
+): Promise<OrchestratorRun> {
+  if (activeRun()) {
+    throw Object.assign(new Error("Já existe uma rodada em andamento"), { status: 409 });
+  }
+
+  const requisitosPath = resolveRequisitosPath(body.requisitosPath);
+  const { workspace, scripts } = ensureWorkspace();
+  const creds = resolveRunCredentials(body);
+  const grep = (body.grep ?? config.playwrightGrep).trim();
+  const autoResumeOnTeste = body.autoResumeOnTeste ?? config.autoResumeOnTeste;
+  const k6Enabled = body.k6Enabled ?? config.k6Enabled;
+  const mode: RunMode = body.mode ?? "full";
+  const now = new Date().toISOString();
+  const run: OrchestratorRun = {
+    id: randomUUID(),
+    status: "queued",
+    createdAt: now,
+    updatedAt: now,
+    requisitosPath,
+    baseUrl: creds.baseUrl,
+    projectPath: workspace,
+    e2eDir: scripts,
+    grep,
+    regenerate: Boolean(body.regenerate),
+    autoResumeOnTeste,
+    k6Enabled,
+    mode,
+    rounds: 0,
+    log: [],
+  };
+  secrets.set(run.id, creds);
+  saveRun(run);
+
+  const done = loop(run, opts.onLog).catch((err) => {
+    run.status = "error";
+    run.error = err instanceof Error ? err.message : String(err);
+    const log = bindLog(run, opts.onLog);
+    log(`erro fatal: ${run.error}`);
+    saveRun(run);
+  }).finally(() => {
+    secrets.delete(run.id);
+  });
+
+  if (opts.wait) {
+    await done;
+    return getRun(run.id) ?? run;
+  }
+  return run;
+}
+
+function bindLog(
+  run: OrchestratorRun,
+  onLog?: (line: string) => void,
+): (line: string) => void {
+  return (line: string) => {
+    appendLog(run, line);
+    onLog?.(line);
+  };
+}
+
+async function runCoverageAuditPhase(
+  run: OrchestratorRun,
+  log: (line: string) => void,
+): Promise<CoverageAuditResult> {
+  run.status = "auditing_coverage";
+  saveRun(run);
+  log("auditoria de cobertura: classificando specs (@executavel vs @rascunho / massa / sem-ui)");
+  try {
+    return runCoverageAudit({
+      onLog: log,
+      autoDowngrade: config.autoDowngradeStubs,
+      strict: config.strictCoverage,
+    });
+  } catch (err) {
+    run.status = "error";
+    run.error = err instanceof Error ? err.message : String(err);
+    saveRun(run);
+    throw err;
+  }
+}
+
+async function finalizeCoverageReport(
+  run: OrchestratorRun,
+  audit: CoverageAuditResult,
+  log: (line: string) => void,
+  playwright?: import("./types.ts").PlaywrightOutcome,
+): Promise<void> {
+  const hadPlaywright = !!playwright;
+  const report = writeCoverageReport({
+    audit,
+    playwright,
+    requisitosPath: run.requisitosPath,
+    triage: run.triage
+      ? {
+          classe: run.triage.classe,
+          us: run.triage.us,
+          ca: run.triage.ca,
+          resumo: run.triage.resumo,
+        }
+      : undefined,
+  });
+  run.coverage = report.summary;
+  run.coverageMdPath = report.mdPath;
+  emitCoverageReportTerminal(report, log);
+  if (hadPlaywright) {
+    displayReportInTerminal(report.mdPath, log);
+  }
+  saveRun(run);
+}
+
+async function tryRunK6Phase(
+  run: OrchestratorRun,
+  log: (line: string) => void,
+): Promise<boolean> {
+  if (!shouldRunK6({ mode: run.mode, enabled: run.k6Enabled })) return true;
+
+  run.status = "running_k6";
+  saveRun(run);
+  try {
+    run.k6 = await runK6({
+      runId: run.id,
+      baseUrl: run.baseUrl,
+      requisitosPath: run.requisitosPath,
+      onLog: log,
+    });
+    saveRun(run);
+    if (run.k6.reportMdPath) displayReportInTerminal(run.k6.reportMdPath, log);
+    if (!run.k6.passed) {
+      log(
+        config.k6Strict || run.mode === "load-only"
+          ? "k6: thresholds falharam — rodada marcada como load_failed"
+          : "k6: aviso — thresholds falharam (Playwright ok; defina K6_STRICT=true para falhar a rodada)",
+      );
+      if (run.mode === "load-only") return false;
+      return !config.k6Strict;
+    }
+    return true;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log(`k6: ${msg}`);
+    if (run.mode === "load-only" || config.k6Strict) return false;
+    return true;
+  }
+}
+
+async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promise<void> {
+  const log = bindLog(run, onLog);
+  const creds = secrets.get(run.id);
+  if (!creds) throw new Error("credenciais da rodada ausentes na memória");
+
+  log(`sincronizando requisitos → ${workspaceDir()}/requisitos`);
+  log("▸ fase: Preparacao — sincronizando requisitos");
+  syncRequisitos(run.requisitosPath);
+  runReqSync(log);
+
+  if (run.mode === "load-only") {
+    log("modo load-only — smoke/carga k6 (Playwright não executado)");
+    const k6ok = await tryRunK6Phase(run, log);
+    run.status = k6ok ? "load_complete" : "load_failed";
+    saveRun(run);
+    return;
+  }
+
+  if (run.mode === "audit-only") {
+    const audit = await runCoverageAuditPhase(run, log);
+    await finalizeCoverageReport(run, audit, log);
+    run.status = "audit_complete";
+    log("modo audit-only — Playwright não executado");
+    saveRun(run);
+    return;
+  }
+
+  if (run.mode === "deepen-stubs") {
+    await ensureChromium(log);
+    run.status = "exploring_logic";
+    saveRun(run);
+    await runLogicExplore({
+      baseUrl: creds.baseUrl,
+      authKind: credPrimary(creds).authKind,
+      login: credPrimary(creds).login,
+      senha: credPrimary(creds).senha,
+      onLog: log,
+    });
+    let audit = await runCoverageAuditPhase(run, log);
+    run.status = "deepening_stubs";
+    saveRun(run);
+    await runDeepenAgent({
+      baseUrl: creds.baseUrl,
+      cases: audit.findings,
+      limit: config.deepenLimit,
+      onLog: log,
+    });
+    audit = runCoverageAudit({
+      onLog: log,
+      autoDowngrade: config.autoDowngradeStubs,
+      strict: config.strictCoverage,
+    });
+    await finalizeCoverageReport(run, audit, log);
+    run.status = "deepen_complete";
+    log("modo deepen-stubs concluido");
+    saveRun(run);
+    return;
+  }
+
+  if (run.mode === "unblock-massa") {
+    await ensureChromium(log);
+    ensureAuthSessionFresh({
+      baseUrl: creds.baseUrl,
+      authKind: credPrimary(creds).authKind,
+      login: credPrimary(creds).login,
+      senha: credPrimary(creds).senha,
+      accesses: creds.accesses,
+      onLog: log,
+    });
+    let audit = await runCoverageAuditPhase(run, log);
+    log("▸ fase: Massa — sincronizando dados e aplicando setups");
+    await prepareMassaForRun({
+      creds,
+      generateLimit: config.massaGenerateLimit,
+      onLog: log,
+    });
+    await applyMassaBatch({ creds, limit: config.massaApplyLimit, onLog: log });
+    run.status = "unblocking_massa";
+    saveRun(run);
+    await runMassaUnblockBatch({
+      creds,
+      runId: run.id,
+      limit: config.massaUnblockLimit,
+      onLog: log,
+    });
+    audit = runCoverageAudit({
+      onLog: log,
+      autoDowngrade: config.autoDowngradeStubs,
+      strict: config.strictCoverage,
+    });
+    await finalizeCoverageReport(run, audit, log);
+    run.status = "unblock_complete";
+    log("modo unblock-massa concluido");
+    saveRun(run);
+    return;
+  }
+
+  if (run.mode === "generate-massa") {
+    let audit = await runCoverageAuditPhase(run, log);
+    run.status = "generating_massa";
+    saveRun(run);
+    log("▸ fase: Massa — gerando scripts/massa/dados.json (runtime)");
+    const prep = await prepareMassaForRun({
+      creds,
+      generateLimit: config.massaGenerateLimit,
+      onLog: log,
+    });
+    log(`massa generate concluido: ${prep.entries} entrada(s), ${prep.generated} preenchida(s) pelo agente`);
+    audit = runCoverageAudit({
+      onLog: log,
+      autoDowngrade: config.autoDowngradeStubs,
+      strict: config.strictCoverage,
+    });
+    await finalizeCoverageReport(run, audit, log);
+    run.status = "massa_complete";
+    saveRun(run);
+    return;
+  }
+
+  if (run.mode === "user-tour") {
+    await ensureChromium(log);
+    run.status = "touring";
+    saveRun(run);
+    const tour = await runUserTour({
+      baseUrl: creds.baseUrl,
+      authKind: credPrimary(creds).authKind,
+      login: credPrimary(creds).login,
+      senha: credPrimary(creds).senha,
+      headed: true,
+      onLog: log,
+    });
+    log(`jornada gravada: ${tour.mdPath}`);
+    run.status = "tour_complete";
+    saveRun(run);
+    return;
+  }
+
+  const specsBefore = listSpecFiles();
+  if (specsBefore.length === 0 || run.regenerate) {
+    run.status = "generating_scripts";
+    saveRun(run);
+    log(
+      specsBefore.length === 0
+        ? "sem scripts — disparando agente para escrever Playwright a partir da documentacao"
+        : "regenerate=true — agente vai reescrever os scripts",
+    );
+    log("▸ fase: Gerando specs — agente IA escrevendo Playwright");
+    await runGenerateAgent({
+      requisitosPath: run.requisitosPath,
+      baseUrl: run.baseUrl,
+      authKind: credPrimary(creds).authKind,
+      regenerate: run.regenerate,
+      onLog: log,
+    });
+    log(t("notice.scriptsCreated", { n: listSpecFiles().length }));
+  } else {
+    log(t("notice.scriptsFound", { n: specsBefore.length }));
+  }
+
+  await ensureChromium(log);
+
+  run.status = "exploring_logic";
+  saveRun(run);
+  log("▸ fase: Crawler UI — mapeando rotas da aplicacao");
+  const explore = await runLogicExplore({
+    baseUrl: creds.baseUrl,
+    authKind: credPrimary(creds).authKind,
+    login: credPrimary(creds).login,
+    senha: credPrimary(creds).senha,
+    onLog: log,
+  });
+  await runLogicAgent({
+    baseUrl: creds.baseUrl,
+    explore,
+    onLog: log,
+  });
+
+  if (config.tourEnabled) {
+    run.status = "touring";
+    saveRun(run);
+    const tour = await runUserTour({
+      baseUrl: creds.baseUrl,
+      authKind: credPrimary(creds).authKind,
+      login: credPrimary(creds).login,
+      senha: credPrimary(creds).senha,
+      onLog: log,
+    });
+    log(`jornada gravada: ${tour.mdPath}`);
+  }
+
+  log("▸ fase: Auditoria — classificando cobertura dos CAs");
+  const audit = await runCoverageAuditPhase(run, log);
+  await finalizeCoverageReport(run, audit, log);
+
+  try {
+    const manifest = loadMassaManifest();
+    const matched = countMassaCredentialMatches(manifest.entries, creds.accesses);
+    if (manifest.entries.length) {
+      log(
+        `credenciais: ${creds.accessCount} acesso(s); ${matched}/${manifest.entries.length} CAs de massa com perfil correspondente`,
+      );
+    } else if (creds.accessCount > 1) {
+      log(`credenciais: ${creds.accessCount} acesso(s) configurados`);
+    }
+  } catch {
+    if (creds.accessCount > 1) log(`credenciais: ${creds.accessCount} acesso(s) configurados`);
+  }
+
+  if (config.massaGenerateEnabled) {
+    log("▸ fase: Massa — sincronizando dados de teste (dados.json / dados.md)");
+    await prepareMassaForRun({
+      creds,
+      generateLimit: config.massaGenerateLimit,
+      onLog: log,
+    });
+    await applyMassaBatch({ creds, limit: config.massaApplyLimit, onLog: log });
+  }
+
+  ensureAuthSessionFresh({
+    baseUrl: creds.baseUrl,
+    authKind: credPrimary(creds).authKind,
+    login: credPrimary(creds).login,
+    senha: credPrimary(creds).senha,
+    accesses: creds.accesses,
+    onLog: log,
+  });
+
+  const maxRounds = 8;
+  while (run.rounds < maxRounds) {
+    if (cancelled.has(run.id)) {
+      run.status = "cancelled";
+      log("cancelado");
+      saveRun(run);
+      return;
+    }
+
+    run.rounds += 1;
+    run.status = run.rounds === 1 ? "running_playwright" : "resuming";
+    log(
+      `Playwright rodada ${run.rounds} url=${run.baseUrl} grep=${run.grep || "(todos)"} max-failures=1 k6=${run.k6Enabled ? "sim" : "nao"}`,
+    );
+    saveRun(run);
+
+    const pw = await runPlaywright({
+      e2eDir: run.e2eDir,
+      grep: run.grep,
+      runId: run.id,
+      env: mergePlaywrightEnvWithMassa(creds),
+      onLog: log,
+    });
+    run.playwright = pw;
+    saveRun(run);
+
+    if (pw.passed) {
+      run.status = "passed";
+      const s = pw.stats;
+      log(
+        `Playwright concluido: ${s.expected} ok | ${s.unexpected} falha(s) | ${s.skipped} pulado(s) | rodada ${run.rounds}`,
+      );
+      await finalizeCoverageReport(run, audit, log, pw);
+      const k6ok = await tryRunK6Phase(run, log);
+      if (!k6ok) run.status = "load_failed";
+      saveRun(run);
+      return;
+    }
+
+    const failure = pw.failures[0];
+    log(`suíte parada na falha: ${failure?.title ?? "desconhecida"}`);
+    run.status = "paused_triage";
+    saveRun(run);
+
+    run.status = "running_agent";
+    log("disparando agente (triagem; Playwright permanece o oraculo)");
+    log("▸ fase: Triagem IA — classificando falha");
+    saveRun(run);
+
+    const triage = await runTriageAgent({
+      projectPath: run.projectPath,
+      e2eDir: run.e2eDir,
+      grep: failure?.grepHint ?? run.grep,
+      playwright: pw,
+      onLog: log,
+    });
+    run.triage = triage;
+    log(
+      `triagem classe=${triage.classe} corrigiuTeste=${triage.corrigiuTeste} discord=${triage.discordEnviado}`,
+    );
+    saveRun(run);
+
+    if (triage.classe === "TESTE" && triage.corrigiuTeste && run.autoResumeOnTeste) {
+      log("TESTE corrigido — retomando suíte (Playwright continua sendo o runner)");
+      continue;
+    }
+
+    if (triage.classe === "PRODUTO") run.status = "paused_produto";
+    else if (triage.classe === "MASSA") run.status = "paused_massa";
+    else if (triage.classe === "AMBIENTE") run.status = "paused_ambiente";
+    else if (triage.classe === "TESTE") run.status = "paused_triage";
+    else run.status = "paused_inconclusivo";
+
+    log(`suíte permanece parada (status=${run.status})`);
+    await finalizeCoverageReport(run, audit, log, pw);
+    return;
+  }
+
+  run.status = "error";
+  run.error = `Limite de ${maxRounds} retomadas após correção de TESTE`;
+  saveRun(run);
+}

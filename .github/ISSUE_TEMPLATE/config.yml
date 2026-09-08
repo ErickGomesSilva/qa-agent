@@ -1,0 +1,5 @@
+{
+  "name": "qa-agent",
+  "description": "Local CLI: requirements → Playwright specs → LLM triage. Playwright is the oracle.",
+  "license": "MIT"
+}

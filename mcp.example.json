@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "discord": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["node_modules/tsx/dist/cli.mjs", "src/discord-mcp.ts"],
+      "cwd": ".",
+      "env": {
+        "DISCORD_WEBHOOK_URL": "cole-no-.env-nao-aqui"
+      }
+    }
+  }
+}

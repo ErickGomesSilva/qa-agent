@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "us": "US_ACL_001",
+      "ca": "CA02",
+      "perfil": "validador",
+      "accessLabel": "validador",
+      "status": "pronto",
+      "precisa": ["Equipe rural ou produtor tenta conceder validador"],
+      "dados": {
+        "concessao_tipo": "validador",
+        "actor_perfil": "equipe_rural"
+      },
+      "setup": "US_ACL_001_CA02.setup.ts"
+    },
+    {
+      "us": "US_LCD_004",
+      "ca": "CA03",
+      "perfil": "revisor",
+      "accessLabel": "revisor",
+      "status": "pronto",
+      "dados": {
+        "arquivo_estado": "pendente_aprovacao",
+        "acao_tentada": "aprovar"
+      },
+      "setup": "US_LCD_004_CA03.setup.ts"
+    }
+  ]
+}

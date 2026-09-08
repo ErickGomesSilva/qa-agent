@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+mcp.json
+data/
+*.log
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+.auth/
+*.pem
+Thumbs.db
+.DS_Store
