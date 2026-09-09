@@ -46,6 +46,8 @@ The script downloads the app to `%LOCALAPPDATA%\qa-agent` (Windows) or `~/.local
 
 Override install folder: `$env:QA_AGENT_HOME="D:\tools\qa-agent"` (Windows) or `QA_AGENT_HOME=~/qa-agent` (Unix) before the one-liner.
 
+**Trust:** piping to `iex` / `bash` runs code from GitHub. Review [`install.ps1`](install.ps1) and [`install.sh`](install.sh) first, or clone the repo and run `node instalar.mjs` instead. See [SECURITY.md](SECURITY.md).
+
 ### Already cloned the repo?
 
 | OS | Command |
@@ -82,9 +84,9 @@ Manual dev setup without installer: `npm install`, `npx playwright install chrom
 | F4 | URL | App under test |
 | F5 | Login | 1–10 accounts, or a `.md` / `.json` file |
 | F6 | Notify | Webhook (optional, PRODUTO only) |
-| F7 | Options | **Run all**, k6, mass, tour, headed, grep, locale |
+| F7 | Options | **Run all**, k6, mass, tour, headed, grep, locale, continue after PRODUTO, retest quarantine |
 | F8 | Mission | Start the run + live telemetry |
-| F9 | Reports | Coverage / k6 markdown |
+| F9 | Consult | **1** reports · **2** traceability matrix · **3** quarantine · **4** journeys |
 
 Enter saves the tab. On F8, Enter starts a run. No TTY: `qaagent --plain`. Reconfigure: `qaagent --plain --reconfigure`.
 
@@ -129,7 +131,7 @@ senha: your-password
 
 Tests never read this file. The orchestrator injects `BASE_URL`, `E2E_AUTH_KIND`, `E2E_LOGIN`, `E2E_SENHA` (and `E2E_ACCESS_N_*` / `E2E_USER_<LABEL>_*` for extra accounts).
 
-Copy `.env.example` → `.env`. Never commit `.env` or `data/`.
+Copy `.env.example` → `.env`. Never commit `.env`, `data/`, `credenciais.md`, `credenciais.json`, or `mcp.json` (all gitignored). See [SECURITY.md](SECURITY.md).
 
 ## HTTP API (optional)
 

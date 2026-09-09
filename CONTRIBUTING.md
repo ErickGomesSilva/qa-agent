@@ -17,6 +17,15 @@ node instalar.mjs
 
 Do not commit `.env`, `data/`, or credential files.
 
+## Security checklist (before opening a PR)
+
+- [ ] `git status` shows no `.env`, `data/`, `credenciais.md`, `credenciais.json`, or `mcp.json`
+- [ ] No API keys, webhook URLs, passwords, or session cookies in diff
+- [ ] Customer requirements and run artifacts stay out of the repo (`data/` is gitignored)
+- [ ] Screenshots or logs in the PR are redacted
+
+If you develop from the one-line install path (`%LOCALAPPDATA%\qa-agent` or `~/.local/share/qa-agent`), that folder is **not** this git repo — do not copy its `.env` or `data/` into the clone.
+
 ## How we work
 
 - Prefer a small pull request with one intent (bugfix, docs, feature).
