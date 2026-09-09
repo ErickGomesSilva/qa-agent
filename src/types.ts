@@ -43,6 +43,7 @@ export type RunStatus =
   | "paused_massa"
   | "paused_ambiente"
   | "paused_inconclusivo"
+  | "complete_with_findings"
   | "error"
   | "cancelled";
 
@@ -53,6 +54,15 @@ export type StuckCase = {
   grepHint?: string;
   attempts: number;
   reason: string;
+};
+
+export type ProductFinding = {
+  us?: string;
+  ca?: string;
+  title: string;
+  grepHint?: string;
+  resumo: string;
+  classe: TriageClass;
 };
 
 export type PlaywrightFailure = {
@@ -131,6 +141,10 @@ export type OrchestratorRun = {
   coverage?: CoverageSummary;
   coverageMdPath?: string;
   stuckCases?: StuckCase[];
+  productFindings?: ProductFinding[];
+  matrixMdPath?: string;
+  continueOnProduto?: boolean;
+  retestQuarantine?: boolean;
   rounds: number;
   error?: string;
   log: string[];
@@ -148,6 +162,8 @@ export type CreateRunBody = {
   regenerate?: boolean;
   autoResumeOnTeste?: boolean;
   k6Enabled?: boolean;
+  continueOnProduto?: boolean;
+  retestQuarantine?: boolean;
   mode?: RunMode;
 };
 

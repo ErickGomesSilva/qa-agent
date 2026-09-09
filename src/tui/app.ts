@@ -45,6 +45,8 @@ import {
 import { detectWebhookProvider, webhookProviderLabel, type WebhookProvider } from "../webhook.ts";
 import { listSpecFiles } from "../workspace.ts";
 import { formatReportKind, formatReportStats, listAllReports, type ReportEntry } from "../coverage-list.ts";
+import { loadQuarantine } from "../quarantine.ts";
+import { lastLabel, listJourneyFiles, loadTraceMatrix } from "../trace-matrix.ts";
 import { displayReportInTerminal, readReportLines } from "../open-report.ts";
 import { attachKeys, type Key } from "./keys.ts";
 import { coalesceLogLines, wrapVisible } from "./text.ts";
@@ -135,6 +137,8 @@ type State = {
     webhookProvider: WebhookProvider;
     autoResume: boolean;
     k6Enabled: boolean;
+    continueOnProduto: boolean;
+    retestQuarantine: boolean;
     massaEnabled: boolean;
     tourEnabled: boolean;
     headed: boolean;
@@ -154,6 +158,8 @@ type State = {
   flashErr: boolean;
   reports: ReportEntry[];
   reportIndex: number;
+  consultView: "relatorios" | "matriz" | "quarentena" | "jornadas";
+  consultIndex: number;
   reportView?: { path: string; lines: string[]; scroll: number };
   runStartedAt?: number;
   runTelemetry: RunTelemetry;
@@ -207,6 +213,8 @@ function seedState(): State {
       webhookProvider,
       autoResume: opt.autoResume,
       k6Enabled: opt.k6Enabled,
+      continueOnProduto: opt.continueOnProduto,
+      retestQuarantine: opt.retestQuarantine,
       massaEnabled: opt.massaEnabled,
       tourEnabled: opt.tourEnabled,
       headed: opt.headed,
@@ -225,6 +233,8 @@ function seedState(): State {
     flashErr: false,
     reports: listAllReports(),
     reportIndex: 0,
+    consultView: "relatorios",
+    consultIndex: 0,
     runTelemetry: { phase: "", detail: "" },
   };
 }
@@ -289,6 +299,16 @@ function appendRunSummary(state: State, run: OrchestratorRun): void {
       const id = [c.us, c.ca].filter(Boolean).join(" ") || c.title.slice(0, 60);
       state.log.push(t("app.stuckItem", { id, reason: c.reason }));
     }
+  }
+  if (run.productFindings?.length) {
+    state.log.push(t("app.productHeader", { n: run.productFindings.length }));
+    for (const p of run.productFindings) {
+      const id = [p.us, p.ca].filter(Boolean).join(" ") || p.title.slice(0, 60);
+      state.log.push(t("app.productItem", { id, resumo: p.resumo }));
+    }
+  }
+  if (run.matrixMdPath) {
+    state.log.push(t("app.matrixPath", { path: run.matrixMdPath }));
   }
   if (run.coverageMdPath) {
     const jsonPath = run.coverageMdPath.replace(/\.md$/i, ".json");
@@ -417,6 +437,15 @@ function boardLines(state: State, width: number): string[] {
   return lines;
 }
 
+const CONSULT_VIEWS = ["relatorios", "matriz", "quarentena", "jornadas"] as const;
+type ConsultView = (typeof CONSULT_VIEWS)[number];
+
+function consultMdPath(view: ConsultView, reports: ReportEntry[]): string | undefined {
+  if (view === "relatorios") return reports[0]?.mdPath;
+  const kind = view === "matriz" ? "matriz" : view === "quarentena" ? "quarentena" : "jornada";
+  return reports.find((r) => r.kind === kind)?.mdPath;
+}
+
 function renderResumosTab(state: State, width: number, rows: number): string[] {
   const inner = Math.max(12, width - 4);
   const lines: string[] = [];
@@ -445,15 +474,105 @@ function renderResumosTab(state: State, width: number, rows: number): string[] {
     lines.push(ink(`  ${w}`, theme.muted));
   }
   lines.push("");
-  if (!state.reports.length) {
+  lines.push(
+    choiceRow(
+      t("consult.view"),
+      [
+        chip(`1 ${t("consult.relatorios")}`, state.consultView === "relatorios"),
+        chip(`2 ${t("consult.matriz")}`, state.consultView === "matriz"),
+        chip(`3 ${t("consult.quarentena")}`, state.consultView === "quarentena"),
+        chip(`4 ${t("consult.jornadas")}`, state.consultView === "jornadas"),
+      ],
+      true,
+      t("help.hint16"),
+    ),
+  );
+  lines.push(ink(`  ${t("consult.openMd")}`, theme.muted));
+  lines.push("");
+
+  if (state.consultView === "matriz") {
+    const m = loadTraceMatrix();
+    if (!m) {
+      lines.push(ink(`  ${t("consult.matrizEmpty")}`, theme.warn));
+    } else {
+      lines.push(
+        ink(
+          `  ${t("consult.matrizCounts", {
+            total: m.counts.total,
+            passed: m.counts.passed,
+            failed: m.counts.failed,
+            never: m.counts.never,
+            stuck: m.counts.stuck,
+            produto: m.counts.produto,
+            na: m.counts.na,
+          })}`,
+          theme.accentHi,
+        ),
+      );
+      lines.push("");
+      const maxRows = Math.max(4, rows - 14);
+      const start = Math.max(0, state.consultIndex - Math.floor(maxRows / 2));
+      const slice = m.rows.slice(start, start + maxRows);
+      slice.forEach((r, i) => {
+        const idx = start + i;
+        const selected = idx === state.consultIndex;
+        const mark = selected ? ink("▸", theme.accentHi) : ink("·", theme.muted);
+        const id = [r.us, r.ca || r.rn].filter(Boolean).join(" ") || r.title.slice(0, 28);
+        const tone =
+          r.last === "passed"
+            ? theme.ok
+            : r.last === "stuck" || r.last === "produto" || r.last === "failed"
+              ? theme.warn
+              : theme.muted;
+        lines.push(`  ${mark} ${ink(id.padEnd(22), selected ? theme.accentHi : theme.fg)} ${ink(`[${r.kind}]`, theme.info)} ${ink(lastLabel(r.last), tone)}`);
+      });
+    }
+    return frame(lines, width, rows, t("tab.resumos"), "heavy");
+  }
+
+  if (state.consultView === "quarentena") {
+    const q = loadQuarantine();
+    if (!q.cases.length) {
+      lines.push(ink(`  ${t("consult.quarentenaEmpty")}`, theme.warn));
+    } else {
+      q.cases.forEach((c, i) => {
+        const selected = i === state.consultIndex;
+        const mark = selected ? ink("▸", theme.accentHi) : ink("★", theme.warn);
+        const id = [c.us, c.ca].filter(Boolean).join(" ") || c.title.slice(0, 40);
+        lines.push(`  ${mark} ${ink(id, selected ? theme.accentHi : theme.warn)}`);
+        lines.push(ink(`      ${c.reason}`, theme.muted));
+      });
+    }
+    return frame(lines, width, rows, t("tab.resumos"), "heavy");
+  }
+
+  if (state.consultView === "jornadas") {
+    const files = listJourneyFiles();
+    const m = loadTraceMatrix();
+    const jrows = m?.rows.filter((r) => r.kind === "jornada") ?? [];
+    if (!files.length && !jrows.length) {
+      lines.push(ink(`  ${t("consult.jornadaEmpty")}`, theme.warn));
+    }
+    for (const f of files) {
+      lines.push(`  ${ink("▸", theme.accentHi)} ${ink("JORNADA.md", theme.fg)} ${ink(fmtWhen(f.modifiedAt), theme.muted)}`);
+      lines.push(ink(`      ${f.mdPath}`, theme.info));
+    }
+    for (const r of jrows) {
+      lines.push(`  ${ink("·", theme.muted)} ${ink(r.title.slice(0, inner - 8), theme.fg)} ${ink(lastLabel(r.last), theme.info)}`);
+    }
+    return frame(lines, width, rows, t("tab.resumos"), "heavy");
+  }
+
+  const list = state.reports.filter((r) => r.kind === "cobertura" || r.kind === "k6");
+  if (!list.length) {
     lines.push(ink(`  ${t("reports.empty")}`, theme.warn));
     lines.push(ink(`  ${t("reports.emptyHint")}`, theme.muted));
   } else {
-    lines.push(ink(`  ${t("reports.count", { n: state.reports.length })}`, theme.fg));
+    lines.push(ink(`  ${t("reports.count", { n: list.length })}`, theme.fg));
     lines.push("");
-    const maxRows = Math.max(4, rows - 8);
+    const maxRows = Math.max(4, rows - 12);
     const start = Math.max(0, state.reportIndex - Math.floor(maxRows / 2));
-    const slice = state.reports.slice(start, start + maxRows);
+    const slice = list.slice(start, start + maxRows);
     slice.forEach((r, i) => {
       const idx = start + i;
       const selected = idx === state.reportIndex;
@@ -470,9 +589,6 @@ function renderResumosTab(state: State, width: number, rows: number): string[] {
         }
       }
     });
-    if (state.reports.length > maxRows) {
-      lines.push(ink(`  … ${t("reports.scrollHint")}`, theme.muted));
-    }
   }
   return frame(lines, width, rows, t("tab.resumos"), "heavy");
 }
@@ -772,7 +888,15 @@ function tabBody(state: State, id: StepId, width: number): string[] {
     const headed = state.draft.headed ? chip(t("opcoes.headedOn"), true) : chip(t("opcoes.headedOff"), true);
     lines.push(choiceRow(t("opcoes.headed"), [headed], state.field === 6, t("help.space")));
     lines.push("");
-    lines.push(...inputField(t("opcoes.grep"), state.draft.grep, state.field === 7, width));
+    const prod = state.draft.continueOnProduto
+      ? chip(t("opcoes.continueProdutoOn"), true)
+      : chip(t("opcoes.continueProdutoOff"), true);
+    lines.push(choiceRow(t("opcoes.continueProduto"), [prod], state.field === 7, t("help.space")));
+    lines.push("");
+    const ret = state.draft.retestQuarantine ? chip(t("opcoes.retestOn"), true) : chip(t("opcoes.retestOff"), true);
+    lines.push(choiceRow(t("opcoes.retest"), [ret], state.field === 8, t("help.space")));
+    lines.push("");
+    lines.push(...inputField(t("opcoes.grep"), state.draft.grep, state.field === 9, width));
     lines.push("");
     lines.push(...evidenceBlock(id, width));
     return lines;
@@ -782,7 +906,7 @@ function tabBody(state: State, id: StepId, width: number): string[] {
 }
 
 function opcoesFieldCount(): number {
-  return 8;
+  return 10;
 }
 
 function draftAsOptions(state: State): OptionsDraft {
@@ -790,6 +914,8 @@ function draftAsOptions(state: State): OptionsDraft {
     runAll: state.draft.runAll,
     autoResume: state.draft.autoResume,
     k6Enabled: state.draft.k6Enabled,
+    continueOnProduto: state.draft.continueOnProduto,
+    retestQuarantine: state.draft.retestQuarantine,
     massaEnabled: state.draft.massaEnabled,
     tourEnabled: state.draft.tourEnabled,
     headed: state.draft.headed,
@@ -801,6 +927,8 @@ function applyOptionsToDraft(state: State, opts: OptionsDraft): void {
   state.draft.runAll = opts.runAll;
   state.draft.autoResume = opts.autoResume;
   state.draft.k6Enabled = opts.k6Enabled;
+  state.draft.continueOnProduto = opts.continueOnProduto;
+  state.draft.retestQuarantine = opts.retestQuarantine;
   state.draft.massaEnabled = opts.massaEnabled;
   state.draft.tourEnabled = opts.tourEnabled;
   state.draft.headed = opts.headed;
@@ -844,7 +972,7 @@ function activeDraft(state: State): { get: () => string; set: (v: string) => voi
     return undefined;
   }
   if (id === "opcoes") {
-    if (state.field === 7) return { get: () => state.draft.grep, set: (v) => { state.draft.grep = v; } };
+    if (state.field === 9) return { get: () => state.draft.grep, set: (v) => { state.draft.grep = v; } };
     return undefined;
   }
   if (id === "credenciais") {
@@ -947,18 +1075,22 @@ async function saveTab(state: State): Promise<void> {
         state.flashErr = false;
         return;
       }
-      const r = state.reports[state.reportIndex];
-      if (!r) {
+      const r =
+        state.consultView === "relatorios"
+          ? state.reports.filter((x) => x.kind === "cobertura" || x.kind === "k6")[state.reportIndex]
+          : undefined;
+      const md = r?.mdPath ?? consultMdPath(state.consultView, state.reports);
+      if (!md) {
         state.flash = t("reports.empty");
         state.flashErr = true;
       } else {
-        const mdLines = readReportLines(r.mdPath);
+        const mdLines = readReportLines(md);
         if (!mdLines.length) {
-          state.flash = t("reports.notReadable", { path: r.mdPath });
+          state.flash = t("reports.notReadable", { path: md });
           state.flashErr = true;
         } else {
-          state.reportView = { path: r.mdPath, lines: mdLines, scroll: 0 };
-          state.flash = t("reports.displayed", { path: r.mdPath });
+          state.reportView = { path: md, lines: mdLines, scroll: 0 };
+          state.flash = t("reports.displayed", { path: md });
           state.flashErr = false;
         }
       }
@@ -1310,6 +1442,10 @@ export async function runTui(): Promise<void> {
           } else if (state.field === 6) {
             opts.headed = !opts.headed;
             syncRunAllFlag(opts);
+          } else if (state.field === 7) {
+            opts.continueOnProduto = !opts.continueOnProduto;
+          } else if (state.field === 8) {
+            opts.retestQuarantine = !opts.retestQuarantine;
           }
           applyOptionsToDraft(state, opts);
           paint(state);
@@ -1338,11 +1474,31 @@ export async function runTui(): Promise<void> {
               return;
             }
           } else {
+            if (
+              key.type === "left" ||
+              key.type === "right" ||
+              (key.type === "char" && ["1", "2", "3", "4"].includes(key.ch))
+            ) {
+              let i = CONSULT_VIEWS.indexOf(state.consultView);
+              if (key.type === "char") i = Number(key.ch) - 1;
+              else i = key.type === "right" ? (i + 1) % CONSULT_VIEWS.length : (i - 1 + CONSULT_VIEWS.length) % CONSULT_VIEWS.length;
+              state.consultView = CONSULT_VIEWS[i] ?? "relatorios";
+              state.consultIndex = 0;
+              state.reportIndex = 0;
+              paint(state);
+              return;
+            }
             if (key.type === "up" || key.type === "down") {
-              if (state.reports.length) {
-                const dir = key.type === "down" ? 1 : -1;
-                state.reportIndex =
-                  (state.reportIndex + dir + state.reports.length) % state.reports.length;
+              const dir = key.type === "down" ? 1 : -1;
+              if (state.consultView === "matriz") {
+                const n = loadTraceMatrix()?.rows.length ?? 0;
+                if (n) state.consultIndex = (state.consultIndex + dir + n) % n;
+              } else if (state.consultView === "quarentena") {
+                const n = loadQuarantine().cases.length;
+                if (n) state.consultIndex = (state.consultIndex + dir + n) % n;
+              } else {
+                const list = state.reports.filter((x) => x.kind === "cobertura" || x.kind === "k6");
+                if (list.length) state.reportIndex = (state.reportIndex + dir + list.length) % list.length;
               }
               paint(state);
               return;

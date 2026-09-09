@@ -20,9 +20,11 @@ const MEANINGFUL_EXPECT =
 const INTERACTION =
   /\.(?:click|dblclick|fill|selectOption|press|check|uncheck|setInputFiles)\s*\(/i;
 
+const API_CALL = /\b(?:request|api)\.(?:get|post|put|patch|delete|fetch)\s*\(/i;
+
 const LOGIN_HELPER = /\b(?:login|selectContext|loginAs)\s*\(/i;
 
-type ParsedTest = {
+export type ParsedTest = {
   title: string;
   body: string;
   file: string;
@@ -44,7 +46,7 @@ function listSpecFiles(dir = join(scriptsDir(), "tests")): string[] {
   return out.sort();
 }
 
-function parseTests(source: string, file: string): ParsedTest[] {
+export function parseTests(source: string, file: string): ParsedTest[] {
   const tests: ParsedTest[] = [];
   const re =
     /test(?:\.(?:only|skip))?\s*\(\s*(['"`])([\s\S]*?)\1\s*,\s*(?:async\s*)?\(\s*\{[^}]*\}\s*\)\s*=>\s*\{([\s\S]*?)\n\}\s*\)/g;
@@ -57,6 +59,14 @@ function parseTests(source: string, file: string): ParsedTest[] {
     tests.push({ title, body, file, us, ca });
   }
   return tests;
+}
+
+export function listParsedSpecTests(): ParsedTest[] {
+  const out: ParsedTest[] = [];
+  for (const file of listSpecFiles()) {
+    out.push(...parseTests(readFileSync(file, "utf8"), file));
+  }
+  return out;
 }
 
 function skipMessage(body: string): string | null {
@@ -132,13 +142,14 @@ function classifyTest(test: ParsedTest): SpecAuditFinding | null {
   }
 
   if (hasTag(test.title, "api")) {
+    const weakApi = !API_CALL.test(test.body) && !MEANINGFUL_EXPECT.test(test.body);
     return {
       us: test.us,
       ca: test.ca,
       specPath: rel,
       nivel: "api",
-      motivo: "",
-      assertEntao: true,
+      motivo: weakApi ? "api sem request/assert — tratar como rascunho de contrato" : "",
+      assertEntao: !weakApi,
     };
   }
 
@@ -267,7 +278,7 @@ export function runCoverageAudit(opts: RunCoverageAuditOpts = {}): CoverageAudit
       massaNecessaria: f.massaNecessaria ?? "",
       assertEntao: f.assertEntao,
       specPath: f.specPath,
-      coberto: f.nivel === "real" || f.nivel === "api",
+      coberto: (f.nivel === "real" || f.nivel === "api") && f.assertEntao,
     });
   }
 

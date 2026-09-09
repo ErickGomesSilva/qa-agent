@@ -51,6 +51,7 @@ function syncAuthHelpers(): void {
   copyWorkspaceTemplate("helpers/access.ts", join(scripts, "helpers", "access.ts"), true);
   copyWorkspaceTemplate("helpers/massa-types.ts", join(scripts, "helpers", "massa-types.ts"), true);
   copyWorkspaceTemplate("helpers/massa.ts", join(scripts, "helpers", "massa.ts"), true);
+  copyWorkspaceTemplate("helpers/api.ts", join(scripts, "helpers", "api.ts"), true);
   copyWorkspaceTemplate(
     "massa/setups/_example.setup.ts",
     join(scripts, "massa", "setups", "_example.setup.ts"),

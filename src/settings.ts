@@ -22,6 +22,8 @@ export type AppSettings = {
   k6Enabled?: boolean;
   massaGenerateEnabled?: boolean;
   tourEnabled?: boolean;
+  continueOnProduto?: boolean;
+  retestQuarantine?: boolean;
   playwrightHeaded?: boolean;
   runAllOptional?: boolean;
   webhookEnabled?: boolean;
@@ -69,6 +71,9 @@ export function loadSettings(): AppSettings {
     autoResumeOnTeste:
       typeof raw.autoResumeOnTeste === "boolean" ? raw.autoResumeOnTeste : undefined,
     k6Enabled: typeof raw.k6Enabled === "boolean" ? raw.k6Enabled : undefined,
+    continueOnProduto:
+      typeof raw.continueOnProduto === "boolean" ? raw.continueOnProduto : undefined,
+    retestQuarantine: typeof raw.retestQuarantine === "boolean" ? raw.retestQuarantine : undefined,
     massaGenerateEnabled:
       typeof raw.massaGenerateEnabled === "boolean" ? raw.massaGenerateEnabled : undefined,
     tourEnabled: typeof raw.tourEnabled === "boolean" ? raw.tourEnabled : undefined,

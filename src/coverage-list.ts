@@ -4,7 +4,7 @@ import type { CoverageReportDetail } from "./coverage-report.ts";
 import type { K6Outcome } from "./k6-types.ts";
 import { scriptsDir } from "./workspace.ts";
 
-export type ReportKind = "cobertura" | "k6";
+export type ReportKind = "cobertura" | "k6" | "matriz" | "quarentena" | "jornada";
 
 export type ReportEntry = {
   kind: ReportKind;
@@ -54,6 +54,31 @@ function readCoberturaEntry(dir: string, fileName: string): ReportEntry | undefi
     summary,
     playwright,
   };
+}
+
+function readNamedMd(
+  dir: string,
+  fileName: string,
+  kind: ReportKind,
+  slug: string,
+): ReportEntry | undefined {
+  if (!fileName.endsWith(".md")) return undefined;
+  const mdPath = join(dir, fileName);
+  const jsonPath = join(dir, fileName.replace(/\.md$/i, ".json"));
+  return {
+    kind,
+    projectSlug: slug,
+    mdPath,
+    jsonPath,
+    modifiedAt: statSync(mdPath).mtime.toISOString(),
+  };
+}
+
+function readSpecial(dir: string, fileName: string): ReportEntry | undefined {
+  if (fileName === "MATRIZ.md") return readNamedMd(dir, fileName, "matriz", "matriz");
+  if (fileName === "QUARENTENA.md") return readNamedMd(dir, fileName, "quarentena", "quarentena");
+  if (fileName === "JORNADA.md") return readNamedMd(dir, fileName, "jornada", "jornada");
+  return undefined;
 }
 
 function readK6Entry(dir: string, fileName: string): ReportEntry | undefined {
@@ -106,14 +131,18 @@ export function listAllReports(): ReportEntry[] {
   if (!existsSync(dir)) return [];
   const byKey = new Map<string, ReportEntry>();
   for (const name of readdirSync(dir)) {
-    const row = readCoberturaEntry(dir, name) ?? readK6Entry(dir, name);
+    const row = readCoberturaEntry(dir, name) ?? readK6Entry(dir, name) ?? readSpecial(dir, name);
     if (row) byKey.set(row.mdPath, row);
   }
   return [...byKey.values()].sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
 }
 
 export function formatReportKind(entry: ReportEntry): string {
-  return entry.kind === "k6" ? "k6" : "cobertura";
+  if (entry.kind === "k6") return "k6";
+  if (entry.kind === "matriz") return "matriz";
+  if (entry.kind === "quarentena") return "quarentena";
+  if (entry.kind === "jornada") return "jornada";
+  return "cobertura";
 }
 
 export function formatReportStats(entry: ReportEntry): string {

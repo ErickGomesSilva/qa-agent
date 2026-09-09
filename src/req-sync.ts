@@ -21,6 +21,42 @@ export type SyncDiffEntry = {
 
 const US_RE = /\b(US_[A-Z0-9_]+)\b/g;
 const CA_RE = /\b(CA\d+)\b/g;
+const RN_RE = /\b(RN[_-]?[A-Z0-9]+)\b/g;
+
+export type RnRecord = {
+  us?: string;
+  rn: string;
+  arquivo: string;
+  texto: string;
+};
+
+export function listRequirementCases(reqDir = requisitosDestDir()): CaRecord[] {
+  const casos: CaRecord[] = [];
+  for (const file of walkMd(reqDir)) casos.push(...extractCasFromMarkdown(file));
+  const byKey = new Map<string, CaRecord>();
+  for (const c of casos) byKey.set(`${c.us}:${c.ca}`, c);
+  return [...byKey.values()];
+}
+
+export function listRequirementRns(reqDir = requisitosDestDir()): RnRecord[] {
+  const out: RnRecord[] = [];
+  const seen = new Set<string>();
+  for (const file of walkMd(reqDir)) {
+    const text = readFileSync(file, "utf8");
+    const arquivo = basename(file);
+    const us = text.match(/\bUS_[A-Z0-9_]+\b/)?.[0];
+    for (const m of text.matchAll(RN_RE)) {
+      const rn = m[1];
+      if (!rn || /^RN$/i.test(rn)) continue;
+      const key = `${us ?? ""}:${rn}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const idx = m.index ?? 0;
+      out.push({ us, rn, arquivo, texto: text.slice(idx, idx + 180).replace(/\s+/g, " ").trim() });
+    }
+  }
+  return out;
+}
 
 function walkMd(dir: string): string[] {
   if (!existsSync(dir)) return [];

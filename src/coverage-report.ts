@@ -10,7 +10,7 @@ import {
   type PlaywrightTestRow,
 } from "./playwright-parse.ts";
 import { coverageReportBasename, projectSlugFromPath } from "./project-name.ts";
-import type { PlaywrightOutcome, StuckCase } from "./types.ts";
+import type { PlaywrightOutcome, ProductFinding, StuckCase } from "./types.ts";
 import { scriptsDir } from "./workspace.ts";
 
 export type NaoRodadoRow = {
@@ -34,6 +34,7 @@ export type CoverageReportDetail = {
   naoRodados: NaoRodadoRow[];
   triage?: { classe: string; us?: string; ca?: string; resumo: string };
   stuckCases?: StuckCase[];
+  productFindings?: ProductFinding[];
 };
 
 export type CoverageReportInput = {
@@ -42,6 +43,7 @@ export type CoverageReportInput = {
   requisitosPath?: string;
   triage?: CoverageReportDetail["triage"];
   stuckCases?: StuckCase[];
+  productFindings?: ProductFinding[];
   /** Abrir o .md no visualizador padrão após gravar (rodadas com Playwright). */
   openMd?: boolean;
 };
@@ -117,6 +119,7 @@ function buildDetail(input: CoverageReportInput): CoverageReportDetail {
     naoRodados: naoRodados.sort((a, b) => `${a.us}:${a.ca}`.localeCompare(`${b.us}:${b.ca}`)),
     triage: input.triage,
     stuckCases: input.stuckCases ?? [],
+    productFindings: input.productFindings ?? [],
   };
 }
 
@@ -246,6 +249,20 @@ function mdReport(detail: CoverageReportDetail, pw?: PlaywrightOutcome): string 
     lines.push("");
   }
 
+  if (detail.productFindings?.length) {
+    lines.push(
+      `## Produto nesta rodada (${detail.productFindings.length})`,
+      "",
+      "A suíte **seguiu** após cada PRODUTO (F7 Seguir após produto).",
+      "",
+    );
+    for (const p of detail.productFindings) {
+      const id = [p.us, p.ca].filter(Boolean).join(" ") || p.title;
+      lines.push(`- **${id}** — ${p.resumo}`);
+    }
+    lines.push("");
+  }
+
   if (detail.triage) {
     lines.push(
       "## Triagem (falha que parou a suíte)",
@@ -343,6 +360,15 @@ export function formatCoverageReportTerminal(out: CoverageReportOutput): string[
     for (const c of d.stuckCases) {
       const id = [c.us, c.ca].filter(Boolean).join(" ") || c.title.slice(0, 70);
       lines.push(`  ★ ${id} — ${c.reason}`);
+    }
+    lines.push("");
+  }
+
+  if (d.productFindings?.length) {
+    lines.push(`  PRODUTO (${d.productFindings.length}) — suíte seguiu`);
+    for (const p of d.productFindings) {
+      const id = [p.us, p.ca].filter(Boolean).join(" ") || p.title.slice(0, 70);
+      lines.push(`  ▸ ${id} — ${p.resumo}`);
     }
     lines.push("");
   }

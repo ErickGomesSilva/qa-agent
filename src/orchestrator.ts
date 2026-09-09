@@ -26,14 +26,23 @@ import { runMassaUnblockBatch } from "./massa/runner.ts";
 import { applyMassaBatch, mergePlaywrightEnvWithMassa } from "./massa/apply.ts";
 import { prepareMassaForRun } from "./massa/generate.ts";
 import { playwrightEnvFromResolved } from "./playwright-env.ts";
+import { parsePlaywrightJsonFile } from "./playwright-parse.ts";
 import { emitCoverageReportTerminal, writeCoverageReport } from "./coverage-report.ts";
 import { displayReportInTerminal } from "./open-report.ts";
 import type { CoverageAuditResult } from "./coverage-types.ts";
 import { runTriageAgent } from "./triage-agent.ts";
+import {
+  loadProductFindings,
+  mergeProductFindings,
+  saveProductFindings,
+} from "./product-findings.ts";
+import { loadQuarantine, quarantineGrep, saveQuarantine, settleQuarantine } from "./quarantine.ts";
+import { formatMatrixTerminal, writeTraceMatrix } from "./trace-matrix.ts";
 import type {
   CreateRunBody,
   OrchestratorRun,
   PlaywrightFailure,
+  ProductFinding,
   ResolvedCredentials,
   RunMode,
   StartRunOptions,
@@ -57,13 +66,31 @@ function failureKey(failure?: PlaywrightFailure): string {
   return (failure?.grepHint || failure?.title || "desconhecida").trim();
 }
 
-function invertFromStuck(stuck: StuckCase[]): string | undefined {
-  const parts = stuck
+function invertFromItems(items: Array<{ grepHint?: string; us?: string }>): string | undefined {
+  const parts = items
     .map((c) => c.grepHint || c.us)
     .filter((s): s is string => Boolean(s?.trim()))
     .map((s) => escapeGrep(s.trim()));
   const unique = [...new Set(parts)];
   return unique.length ? unique.join("|") : undefined;
+}
+
+function invertFromStuck(stuck: StuckCase[]): string | undefined {
+  return invertFromItems(stuck);
+}
+
+function productFromFailure(failure: PlaywrightFailure | undefined, resumo: string): ProductFinding {
+  const title = failure?.title ?? "desconhecida";
+  const us = title.match(/US_[A-Z0-9_]+/)?.[0];
+  const ca = title.match(/CA\d+/)?.[0];
+  return {
+    us,
+    ca,
+    title,
+    grepHint: failure?.grepHint ?? us,
+    resumo,
+    classe: "PRODUTO",
+  };
 }
 
 function stuckFromFailure(failure: PlaywrightFailure | undefined, attempts: number, limit: number): StuckCase {
@@ -149,6 +176,8 @@ export async function startRun(
   const grep = (body.grep ?? config.playwrightGrep).trim();
   const autoResumeOnTeste = body.autoResumeOnTeste ?? config.autoResumeOnTeste;
   const k6Enabled = body.k6Enabled ?? config.k6Enabled;
+  const continueOnProduto = body.continueOnProduto ?? config.continueOnProduto;
+  const retestQuarantine = body.retestQuarantine ?? config.retestQuarantine;
   const mode: RunMode = body.mode ?? "full";
   const now = new Date().toISOString();
   const run: OrchestratorRun = {
@@ -164,8 +193,11 @@ export async function startRun(
     regenerate: Boolean(body.regenerate),
     autoResumeOnTeste,
     k6Enabled,
+    continueOnProduto,
+    retestQuarantine,
     mode,
     stuckCases: [],
+    productFindings: [],
     rounds: 0,
     log: [],
   };
@@ -240,10 +272,19 @@ async function finalizeCoverageReport(
         }
       : undefined,
     stuckCases: run.stuckCases,
+    productFindings: run.productFindings,
   });
   run.coverage = report.summary;
   run.coverageMdPath = report.mdPath;
+  const matrix = writeTraceMatrix({
+    requisitosPath: run.requisitosPath,
+    playwrightJsonPath: playwright?.rawJsonPath,
+    stuck: run.stuckCases,
+    products: run.productFindings,
+  });
+  run.matrixMdPath = matrix.mdPath;
   emitCoverageReportTerminal(report, log);
+  for (const line of formatMatrixTerminal(matrix.matrix, 12)) log(line);
   if (hadPlaywright) {
     displayReportInTerminal(report.mdPath, log);
   }
@@ -514,9 +555,69 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
 
   const resumeLimit = config.testeResumeLimit;
   const maxLoops = 80;
-  const stuck: StuckCase[] = run.stuckCases ?? [];
+  const stuck: StuckCase[] = [];
+  const products: ProductFinding[] = run.productFindings ?? [];
+  const storedQuarantine = loadQuarantine().cases;
+  const retest = Boolean(run.retestQuarantine);
+  if (retest && storedQuarantine.length) {
+    const qg = quarantineGrep(storedQuarantine);
+    if (qg) {
+      run.grep = qg;
+      log(`reteste de quarentena: ${storedQuarantine.length} caso(s) — grep=${qg}`);
+    }
+  } else if (storedQuarantine.length) {
+    log(`quarentena ativa: ${storedQuarantine.length} caso(s) excluídos desta rodada (F7 retestar para incluir)`);
+  }
   let sameKey = "";
   let sameAttempts = 0;
+
+  const persistArtifacts = (pw?: import("./types.ts").PlaywrightOutcome) => {
+    run.stuckCases = stuck;
+    run.productFindings = products;
+    const passedRows =
+      pw?.rawJsonPath && existsSync(pw.rawJsonPath)
+        ? parsePlaywrightJsonFile(pw.rawJsonPath).filter((r) => r.status === "passed")
+        : [];
+    const nextQ = settleQuarantine({
+      previous: storedQuarantine,
+      newStuck: stuck,
+      passedRows,
+      retest,
+    });
+    saveQuarantine(nextQ);
+    saveProductFindings(mergeProductFindings(loadProductFindings(), products));
+  };
+
+  const endSuite = async (
+    pw: import("./types.ts").PlaywrightOutcome | undefined,
+    kind: "ok" | "empty",
+  ) => {
+    persistArtifacts(pw);
+    if (products.length) {
+      run.status = "complete_with_findings";
+      log(`PRODUTO (${products.length}): suíte seguiu; veja F9 Matriz / PRODUTO.json`);
+      for (const p of products) {
+        const id = [p.us, p.ca].filter(Boolean).join(" ") || p.title.slice(0, 80);
+        log(`PRODUTO ▸ ${id} — ${p.resumo}`);
+      }
+    } else {
+      run.status = "passed";
+    }
+    if (kind === "empty") log("sem testes restantes no recorte — encerrando");
+    if (stuck.length) {
+      log(`NÃO FINALIZADO (${stuck.length}): casos que esgotaram ${resumeLimit} retomadas TESTE`);
+      for (const c of stuck) {
+        const id = [c.us, c.ca].filter(Boolean).join(" ") || c.title.slice(0, 80);
+        log(`NÃO FINALIZADO ★ ${id} — ${c.reason}`);
+      }
+    }
+    await finalizeCoverageReport(run, audit, log, pw);
+    if (pw?.passed || products.length || stuck.length) {
+      const k6ok = await tryRunK6Phase(run, log);
+      if (!k6ok) run.status = "load_failed";
+    }
+    saveRun(run);
+  };
 
   while (run.rounds < maxLoops) {
     if (cancelled.has(run.id)) {
@@ -528,15 +629,20 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
 
     run.rounds += 1;
     run.status = run.rounds === 1 ? "running_playwright" : "resuming";
-    const invert = invertFromStuck(stuck);
+    const invert = invertFromItems([
+      ...(retest ? [] : storedQuarantine),
+      ...stuck,
+      ...products,
+    ]);
+    const grep = run.grep;
     log(
-      `Playwright rodada ${run.rounds} url=${run.baseUrl} grep=${run.grep || "(todos)"} invert=${invert ?? "(nenhum)"} max-failures=1 k6=${run.k6Enabled ? "sim" : "nao"}`,
+      `Playwright rodada ${run.rounds} url=${run.baseUrl} grep=${grep || "(todos)"} invert=${invert ?? "(nenhum)"} max-failures=1 k6=${run.k6Enabled ? "sim" : "nao"} seguirProduto=${run.continueOnProduto ? "sim" : "nao"}`,
     );
     saveRun(run);
 
     const pw = await runPlaywright({
       e2eDir: run.e2eDir,
-      grep: run.grep,
+      grep,
       grepInvert: invert,
       runId: run.id,
       env: mergePlaywrightEnvWithMassa(creds),
@@ -546,40 +652,19 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
     saveRun(run);
 
     if (pw.passed) {
-      run.status = "passed";
-      run.stuckCases = stuck;
       const s = pw.stats;
       log(
         `Playwright concluido: ${s.expected} ok | ${s.unexpected} falha(s) | ${s.skipped} pulado(s) | rodada ${run.rounds}`,
       );
-      if (stuck.length) {
-        log(`NÃO FINALIZADO (${stuck.length}): casos que esgotaram ${resumeLimit} retomadas TESTE`);
-        for (const c of stuck) {
-          const id = [c.us, c.ca].filter(Boolean).join(" ") || c.title.slice(0, 80);
-          log(`NÃO FINALIZADO ★ ${id} — ${c.reason}`);
-        }
-      }
-      await finalizeCoverageReport(run, audit, log, pw);
-      const k6ok = await tryRunK6Phase(run, log);
-      if (!k6ok) run.status = "load_failed";
-      saveRun(run);
+      await endSuite(pw, "ok");
       return;
     }
 
     const noTests =
       pw.failures[0]?.title === "Nenhum teste executado" ||
       (pw.stats.expected === 0 && pw.stats.unexpected === 0);
-    if (noTests && stuck.length) {
-      run.status = "passed";
-      run.stuckCases = stuck;
-      run.error = undefined;
-      log("sem testes restantes no recorte — encerrando com casos não finalizados");
-      for (const c of stuck) {
-        const id = [c.us, c.ca].filter(Boolean).join(" ") || c.title.slice(0, 80);
-        log(`NÃO FINALIZADO ★ ${id} — ${c.reason}`);
-      }
-      await finalizeCoverageReport(run, audit, log, pw);
-      saveRun(run);
+    if (noTests && (stuck.length || products.length || storedQuarantine.length)) {
+      await endSuite(pw, "empty");
       return;
     }
 
@@ -632,19 +717,30 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
       continue;
     }
 
+    if (triage.classe === "PRODUTO" && run.continueOnProduto) {
+      const item = productFromFailure(failure, triage.resumo);
+      products.push(item);
+      run.productFindings = products;
+      const id = [item.us, item.ca].filter(Boolean).join(" ") || item.title.slice(0, 80);
+      log(`PRODUTO ▸ ${id} — gravado; suíte segue (F9 Matriz)`);
+      sameKey = "";
+      sameAttempts = 0;
+      continue;
+    }
+
     if (triage.classe === "PRODUTO") run.status = "paused_produto";
     else if (triage.classe === "MASSA") run.status = "paused_massa";
     else if (triage.classe === "AMBIENTE") run.status = "paused_ambiente";
     else if (triage.classe === "TESTE") run.status = "paused_triage";
     else run.status = "paused_inconclusivo";
 
-    run.stuckCases = stuck;
+    persistArtifacts(pw);
     log(`suíte permanece parada (status=${run.status})`);
     await finalizeCoverageReport(run, audit, log, pw);
     return;
   }
 
-  run.stuckCases = stuck;
+  persistArtifacts(run.playwright);
   run.status = "error";
   run.error = `Limite interno de ${maxLoops} voltas da suíte`;
   saveRun(run);

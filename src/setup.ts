@@ -73,6 +73,12 @@ export function applySavedSettings(): void {
   if (s.k6Enabled !== undefined) {
     process.env.K6_ENABLED = s.k6Enabled ? "true" : "false";
   }
+  if (s.continueOnProduto !== undefined) {
+    process.env.CONTINUE_ON_PRODUTO = s.continueOnProduto ? "true" : "false";
+  }
+  if (s.retestQuarantine !== undefined) {
+    process.env.RETEST_QUARANTINE = s.retestQuarantine ? "true" : "false";
+  }
   if (s.massaGenerateEnabled !== undefined) {
     process.env.MASSA_GENERATE_ENABLED = s.massaGenerateEnabled ? "true" : "false";
   }
@@ -496,6 +502,8 @@ export type OptionsDraft = {
   runAll: boolean;
   autoResume: boolean;
   k6Enabled: boolean;
+  continueOnProduto: boolean;
+  retestQuarantine: boolean;
   massaEnabled: boolean;
   tourEnabled: boolean;
   headed: boolean;
@@ -525,6 +533,8 @@ export function currentOptionsDraft(): OptionsDraft {
     runAll: false,
     autoResume: s.autoResumeOnTeste ?? config.autoResumeOnTeste,
     k6Enabled: s.k6Enabled ?? config.k6Enabled,
+    continueOnProduto: s.continueOnProduto ?? config.continueOnProduto,
+    retestQuarantine: s.retestQuarantine ?? config.retestQuarantine,
     massaEnabled: s.massaGenerateEnabled ?? config.massaGenerateEnabled,
     tourEnabled: s.tourEnabled ?? config.tourEnabled,
     headed,
@@ -542,6 +552,8 @@ export function saveOptions(opts: OptionsDraft): void {
     AUTO_RESUME_ON_TESTE: opts.autoResume ? "true" : "false",
     PLAYWRIGHT_GREP: grep,
     K6_ENABLED: opts.k6Enabled ? "true" : "false",
+    CONTINUE_ON_PRODUTO: opts.continueOnProduto ? "true" : "false",
+    RETEST_QUARANTINE: opts.retestQuarantine ? "true" : "false",
     MASSA_GENERATE_ENABLED: opts.massaEnabled ? "true" : "false",
     TOUR_ENABLED: opts.tourEnabled ? "true" : "false",
     PLAYWRIGHT_HEADED: opts.headed ? "true" : "false",
@@ -553,6 +565,8 @@ export function saveOptions(opts: OptionsDraft): void {
     autoResumeOnTeste: opts.autoResume,
     playwrightGrep: grep,
     k6Enabled: opts.k6Enabled,
+    continueOnProduto: opts.continueOnProduto,
+    retestQuarantine: opts.retestQuarantine,
     massaGenerateEnabled: opts.massaEnabled,
     tourEnabled: opts.tourEnabled,
     playwrightHeaded: opts.headed,
@@ -565,6 +579,8 @@ export function saveOptions(opts: OptionsDraft): void {
       all: runAll ? t("common.yes") : t("common.no"),
       on: opts.autoResume ? t("opcoes.resumeOnWord") : t("opcoes.resumeOffWord"),
       k6: opts.k6Enabled ? t("opcoes.onWord") : t("opcoes.offWord"),
+      produto: opts.continueOnProduto ? t("opcoes.onWord") : t("opcoes.offWord"),
+      retest: opts.retestQuarantine ? t("opcoes.onWord") : t("opcoes.offWord"),
       massa: opts.massaEnabled ? t("opcoes.onWord") : t("opcoes.offWord"),
       tour: opts.tourEnabled ? t("opcoes.onWord") : t("opcoes.offWord"),
       headed: opts.headed ? t("opcoes.onWord") : t("opcoes.offWord"),
@@ -596,6 +612,8 @@ export function buildRunBody(regenerate: boolean): CreateRunBody {
     grep: config.playwrightGrep,
     autoResumeOnTeste: config.autoResumeOnTeste,
     k6Enabled: config.k6Enabled,
+    continueOnProduto: config.continueOnProduto,
+    retestQuarantine: config.retestQuarantine,
     regenerate,
   };
 }

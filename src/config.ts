@@ -50,6 +50,8 @@ function snapshot() {
     autoDowngradeStubs: envBool("AUTO_DOWNGRADE_STUBS", true),
     deepenLimit: Math.max(1, Number(env("DEEPEN_LIMIT", "15")) || 15),
     testeResumeLimit: Math.max(1, Number(env("TESTE_RESUME_LIMIT", "5")) || 5),
+    continueOnProduto: envBool("CONTINUE_ON_PRODUTO", true),
+    retestQuarantine: envBool("RETEST_QUARANTINE", false),
     massaUnblockLimit: Math.max(1, Number(env("MASSA_UNBLOCK_LIMIT", "5")) || 5),
     massaGenerateLimit: Math.max(0, Number(env("MASSA_GENERATE_LIMIT", "10")) || 10),
     massaApplyLimit: Math.max(0, Number(env("MASSA_APPLY_LIMIT", "5")) || 5),
