@@ -26,28 +26,51 @@ Your Cursor/OpenAI key stays on your machine. The agent runtime is **local** —
 - A **user** API key ([Cursor](https://cursor.com/dashboard/settings/api-keys) or OpenAI-compatible). Team Admin Cursor keys are **not** accepted.
 - An application URL and at least one login for E2E.
 
-## Install (Windows)
+## Install (one line)
+
+**Node.js ≥ 22.13** must already be on PATH ([nodejs.org](https://nodejs.org)).
+
+**Windows** (PowerShell):
 
 ```powershell
-Set-ExecutionPolicy -Scope Process Bypass
-.\instalar.ps1
+irm https://raw.githubusercontent.com/ErickGomesSilva/qa-agent/main/install.ps1 | iex
 ```
 
-Closes: install deps, Chromium, put `qaagent` on your user PATH (no admin), Start Menu shortcuts.
+**Linux / macOS**:
 
-Open a **new** PowerShell:
+```bash
+curl -fsSL https://raw.githubusercontent.com/ErickGomesSilva/qa-agent/main/install.sh | bash
+```
+
+The script downloads the app to `%LOCALAPPDATA%\qa-agent` (Windows) or `~/.local/share/qa-agent` (Linux/macOS), runs `npm install`, installs Chromium, and adds `qaagent` to your user PATH. Open a **new** terminal and run `qaagent`.
+
+Override install folder: `$env:QA_AGENT_HOME="D:\tools\qa-agent"` (Windows) or `QA_AGENT_HOME=~/qa-agent` (Unix) before the one-liner.
+
+### Already cloned the repo?
+
+| OS | Command |
+|---|---|
+| Windows (PowerShell) | `.\instalar.ps1` or `.\instalar.cmd` |
+| Linux / macOS | `chmod +x instalar && ./instalar` |
+| Any OS | `node instalar.mjs` or `npm run setup` |
+
+### Uninstall
+
+Removes `qaagent` from PATH only — keeps `.env`, `data/`, and the install folder.
+
+**Windows:**
 
 ```powershell
-qaagent
+cd $env:LOCALAPPDATA\qa-agent; node desinstalar.mjs
 ```
 
-Uninstall the command only (keeps `.env` and `data/`):
+**Linux / macOS:**
 
-```powershell
-.\desinstalar.ps1
+```bash
+cd ~/.local/share/qa-agent && node desinstalar.mjs
 ```
 
-Without the installer: `npm install`, `npx playwright install chromium`, `npm start`.
+Manual dev setup without installer: `npm install`, `npx playwright install chromium`, `npm start`.
 
 ## Keyboard map (TUI)
 

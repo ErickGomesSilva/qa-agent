@@ -14,16 +14,49 @@ Gera specs a partir de requisitos, rastreia a UI, pode gerar `dados.json` de mas
 
 A chave da API fica na sua máquina. O runtime do agente é **local** (alcança URL interna).
 
-## Instalar no Windows
+## Instalar (uma linha)
+
+**Node.js ≥ 22.13** precisa estar no PATH ([nodejs.org](https://nodejs.org)).
+
+**Windows** (PowerShell):
 
 ```powershell
-Set-ExecutionPolicy -Scope Process Bypass
-.\instalar.ps1
+irm https://raw.githubusercontent.com/ErickGomesSilva/qa-agent/main/install.ps1 | iex
 ```
 
-Depois, **PowerShell novo**: `qaagent`.
+**Linux / macOS**:
 
-Desinstalar só o comando: `.\desinstalar.ps1` (não apaga `.env` nem `data/`).
+```bash
+curl -fsSL https://raw.githubusercontent.com/ErickGomesSilva/qa-agent/main/install.sh | bash
+```
+
+O script baixa o app para `%LOCALAPPDATA%\qa-agent` (Windows) ou `~/.local/share/qa-agent` (Linux/macOS), roda `npm install`, instala Chromium e coloca `qaagent` no PATH. Abra um **terminal novo** e rode `qaagent`.
+
+Pasta customizada: `$env:QA_AGENT_HOME="D:\tools\qa-agent"` (Windows) ou `QA_AGENT_HOME=~/qa-agent` (Unix) antes da linha de comando.
+
+### Já clonou o repositório?
+
+| SO | Comando |
+|---|---|
+| Windows | `.\instalar.ps1` ou `.\instalar.cmd` |
+| Linux / macOS | `chmod +x instalar && ./instalar` |
+| Qualquer SO | `node instalar.mjs` ou `npm run setup` |
+
+### Desinstalar
+
+Só remove o comando do PATH — mantém `.env`, `data/` e a pasta de instalação.
+
+**Windows:**
+
+```powershell
+cd $env:LOCALAPPDATA\qa-agent; node desinstalar.mjs
+```
+
+**Linux / macOS:**
+
+```bash
+cd ~/.local/share/qa-agent && node desinstalar.mjs
+```
 
 ## Abas
 

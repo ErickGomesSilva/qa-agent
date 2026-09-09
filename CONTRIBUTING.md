@@ -5,14 +5,14 @@ Thanks for helping. QA Agent is a local CLI: requirements → Playwright → LLM
 ## Setup
 
 - Node.js **22.13+**
-- Windows is the primary install path (`instalar.ps1`); Linux/macOS can run `npm install` and `npx playwright install chromium`
+- One-line install (documented in README): `install.ps1` / `install.sh` on GitHub raw
+- In-repo install: `node instalar.mjs` (or `./instalar`, `instalar.ps1`, `instalar.cmd`)
 
 ```bash
 git clone <this-repo>
 cd qa-agent
-cp .env.example .env
-npm install
-npm run typecheck
+node instalar.mjs
+# dev without PATH: npm install && npm run typecheck
 ```
 
 Do not commit `.env`, `data/`, or credential files.

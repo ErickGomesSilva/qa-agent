@@ -1,5 +1,5 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-node "%~dp0instalar.mjs" %*
+node "%~dp0desinstalar.mjs" %*
 exit /b %ERRORLEVEL%

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Instalador QA Agent — Linux / macOS (ou Git Bash no Windows)
+set -euo pipefail
+cd "$(dirname "$0")"
+exec node instalar.mjs "$@"
