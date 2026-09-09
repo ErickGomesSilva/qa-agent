@@ -10,7 +10,7 @@ import {
   type PlaywrightTestRow,
 } from "./playwright-parse.ts";
 import { coverageReportBasename, projectSlugFromPath } from "./project-name.ts";
-import type { PlaywrightOutcome } from "./types.ts";
+import type { PlaywrightOutcome, StuckCase } from "./types.ts";
 import { scriptsDir } from "./workspace.ts";
 
 export type NaoRodadoRow = {
@@ -33,6 +33,7 @@ export type CoverageReportDetail = {
   };
   naoRodados: NaoRodadoRow[];
   triage?: { classe: string; us?: string; ca?: string; resumo: string };
+  stuckCases?: StuckCase[];
 };
 
 export type CoverageReportInput = {
@@ -40,6 +41,7 @@ export type CoverageReportInput = {
   playwright?: PlaywrightOutcome;
   requisitosPath?: string;
   triage?: CoverageReportDetail["triage"];
+  stuckCases?: StuckCase[];
   /** Abrir o .md no visualizador padrão após gravar (rodadas com Playwright). */
   openMd?: boolean;
 };
@@ -114,6 +116,7 @@ function buildDetail(input: CoverageReportInput): CoverageReportDetail {
     playwright: pwGroups,
     naoRodados: naoRodados.sort((a, b) => `${a.us}:${a.ca}`.localeCompare(`${b.us}:${b.ca}`)),
     triage: input.triage,
+    stuckCases: input.stuckCases ?? [],
   };
 }
 
@@ -227,6 +230,22 @@ function mdReport(detail: CoverageReportDetail, pw?: PlaywrightOutcome): string 
     );
   }
 
+  if (detail.stuckCases?.length) {
+    lines.push(
+      `## ★ Não finalizados (${detail.stuckCases.length})`,
+      "",
+      `Esgotaram ${detail.stuckCases[0]?.attempts ?? "?"} retomadas TESTE. A suíte **seguiu** para o próximo caso.`,
+      "",
+    );
+    for (const c of detail.stuckCases) {
+      const id = [c.us, c.ca].filter(Boolean).join(" ") || c.title;
+      lines.push(`- **${id}**`);
+      lines.push(`  - ${c.title}`);
+      lines.push(`  - ${c.reason}`);
+    }
+    lines.push("");
+  }
+
   if (detail.triage) {
     lines.push(
       "## Triagem (falha que parou a suíte)",
@@ -317,6 +336,15 @@ export function formatCoverageReportTerminal(out: CoverageReportOutput): string[
       ...nao.slice(0, 8).map((r) => `  · ${r.us} ${r.ca} [${nivelLabel(r.nivel)}] ${r.motivo.slice(0, 60)}`),
       "",
     );
+  }
+
+  if (d.stuckCases?.length) {
+    lines.push(`  ★ NÃO FINALIZADOS (${d.stuckCases.length}) — suíte seguiu após limite TESTE`);
+    for (const c of d.stuckCases) {
+      const id = [c.us, c.ca].filter(Boolean).join(" ") || c.title.slice(0, 70);
+      lines.push(`  ★ ${id} — ${c.reason}`);
+    }
+    lines.push("");
   }
 
   if (d.triage) {

@@ -275,6 +275,13 @@ function appendRunSummary(state: State, run: OrchestratorRun): void {
       }),
     );
   }
+  if (run.stuckCases?.length) {
+    state.log.push(t("app.stuckHeader", { n: run.stuckCases.length }));
+    for (const c of run.stuckCases) {
+      const id = [c.us, c.ca].filter(Boolean).join(" ") || c.title.slice(0, 60);
+      state.log.push(t("app.stuckItem", { id, reason: c.reason }));
+    }
+  }
   if (run.coverageMdPath) {
     const jsonPath = run.coverageMdPath.replace(/\.md$/i, ".json");
     if (existsSync(jsonPath)) {

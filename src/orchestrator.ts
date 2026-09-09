@@ -33,9 +33,11 @@ import { runTriageAgent } from "./triage-agent.ts";
 import type {
   CreateRunBody,
   OrchestratorRun,
+  PlaywrightFailure,
   ResolvedCredentials,
   RunMode,
   StartRunOptions,
+  StuckCase,
 } from "./types.ts";
 import {
   credenciaisPath,
@@ -46,6 +48,37 @@ import {
   syncRequisitos,
   workspaceDir,
 } from "./workspace.ts";
+
+function escapeGrep(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function failureKey(failure?: PlaywrightFailure): string {
+  return (failure?.grepHint || failure?.title || "desconhecida").trim();
+}
+
+function invertFromStuck(stuck: StuckCase[]): string | undefined {
+  const parts = stuck
+    .map((c) => c.grepHint || c.us)
+    .filter((s): s is string => Boolean(s?.trim()))
+    .map((s) => escapeGrep(s.trim()));
+  const unique = [...new Set(parts)];
+  return unique.length ? unique.join("|") : undefined;
+}
+
+function stuckFromFailure(failure: PlaywrightFailure | undefined, attempts: number, limit: number): StuckCase {
+  const title = failure?.title ?? "desconhecida";
+  const us = title.match(/US_[A-Z0-9_]+/)?.[0];
+  const ca = title.match(/CA\d+/)?.[0];
+  return {
+    us,
+    ca,
+    title,
+    grepHint: failure?.grepHint ?? us,
+    attempts,
+    reason: `Limite de ${limit} retomadas TESTE — não finalizado; suíte seguiu`,
+  };
+}
 
 const cancelled = new Set<string>();
 const secrets = new Map<string, ResolvedCredentials>();
@@ -132,6 +165,7 @@ export async function startRun(
     autoResumeOnTeste,
     k6Enabled,
     mode,
+    stuckCases: [],
     rounds: 0,
     log: [],
   };
@@ -205,6 +239,7 @@ async function finalizeCoverageReport(
           resumo: run.triage.resumo,
         }
       : undefined,
+    stuckCases: run.stuckCases,
   });
   run.coverage = report.summary;
   run.coverageMdPath = report.mdPath;
@@ -477,8 +512,13 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
     onLog: log,
   });
 
-  const maxRounds = 8;
-  while (run.rounds < maxRounds) {
+  const resumeLimit = config.testeResumeLimit;
+  const maxLoops = 80;
+  const stuck: StuckCase[] = run.stuckCases ?? [];
+  let sameKey = "";
+  let sameAttempts = 0;
+
+  while (run.rounds < maxLoops) {
     if (cancelled.has(run.id)) {
       run.status = "cancelled";
       log("cancelado");
@@ -488,14 +528,16 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
 
     run.rounds += 1;
     run.status = run.rounds === 1 ? "running_playwright" : "resuming";
+    const invert = invertFromStuck(stuck);
     log(
-      `Playwright rodada ${run.rounds} url=${run.baseUrl} grep=${run.grep || "(todos)"} max-failures=1 k6=${run.k6Enabled ? "sim" : "nao"}`,
+      `Playwright rodada ${run.rounds} url=${run.baseUrl} grep=${run.grep || "(todos)"} invert=${invert ?? "(nenhum)"} max-failures=1 k6=${run.k6Enabled ? "sim" : "nao"}`,
     );
     saveRun(run);
 
     const pw = await runPlaywright({
       e2eDir: run.e2eDir,
       grep: run.grep,
+      grepInvert: invert,
       runId: run.id,
       env: mergePlaywrightEnvWithMassa(creds),
       onLog: log,
@@ -505,13 +547,38 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
 
     if (pw.passed) {
       run.status = "passed";
+      run.stuckCases = stuck;
       const s = pw.stats;
       log(
         `Playwright concluido: ${s.expected} ok | ${s.unexpected} falha(s) | ${s.skipped} pulado(s) | rodada ${run.rounds}`,
       );
+      if (stuck.length) {
+        log(`NÃO FINALIZADO (${stuck.length}): casos que esgotaram ${resumeLimit} retomadas TESTE`);
+        for (const c of stuck) {
+          const id = [c.us, c.ca].filter(Boolean).join(" ") || c.title.slice(0, 80);
+          log(`NÃO FINALIZADO ★ ${id} — ${c.reason}`);
+        }
+      }
       await finalizeCoverageReport(run, audit, log, pw);
       const k6ok = await tryRunK6Phase(run, log);
       if (!k6ok) run.status = "load_failed";
+      saveRun(run);
+      return;
+    }
+
+    const noTests =
+      pw.failures[0]?.title === "Nenhum teste executado" ||
+      (pw.stats.expected === 0 && pw.stats.unexpected === 0);
+    if (noTests && stuck.length) {
+      run.status = "passed";
+      run.stuckCases = stuck;
+      run.error = undefined;
+      log("sem testes restantes no recorte — encerrando com casos não finalizados");
+      for (const c of stuck) {
+        const id = [c.us, c.ca].filter(Boolean).join(" ") || c.title.slice(0, 80);
+        log(`NÃO FINALIZADO ★ ${id} — ${c.reason}`);
+      }
+      await finalizeCoverageReport(run, audit, log, pw);
       saveRun(run);
       return;
     }
@@ -540,7 +607,28 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
     saveRun(run);
 
     if (triage.classe === "TESTE" && triage.corrigiuTeste && run.autoResumeOnTeste) {
-      log("TESTE corrigido — retomando suíte (Playwright continua sendo o runner)");
+      const key = failureKey(failure);
+      if (key === sameKey) sameAttempts += 1;
+      else {
+        sameKey = key;
+        sameAttempts = 1;
+      }
+
+      if (sameAttempts >= resumeLimit) {
+        const item = stuckFromFailure(failure, sameAttempts, resumeLimit);
+        stuck.push(item);
+        run.stuckCases = stuck;
+        const id = [item.us, item.ca].filter(Boolean).join(" ") || item.title.slice(0, 80);
+        log(`NÃO FINALIZADO ★ ${id} — ${item.reason}`);
+        log(`seguindo para a próxima US (grep-invert atualizado)`);
+        sameKey = "";
+        sameAttempts = 0;
+        continue;
+      }
+
+      log(
+        `TESTE corrigido — retomando suíte (tentativa ${sameAttempts}/${resumeLimit} neste caso; Playwright continua sendo o runner)`,
+      );
       continue;
     }
 
@@ -550,12 +638,14 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
     else if (triage.classe === "TESTE") run.status = "paused_triage";
     else run.status = "paused_inconclusivo";
 
+    run.stuckCases = stuck;
     log(`suíte permanece parada (status=${run.status})`);
     await finalizeCoverageReport(run, audit, log, pw);
     return;
   }
 
+  run.stuckCases = stuck;
   run.status = "error";
-  run.error = `Limite de ${maxRounds} retomadas após correção de TESTE`;
+  run.error = `Limite interno de ${maxLoops} voltas da suíte`;
   saveRun(run);
 }

@@ -46,6 +46,15 @@ export type RunStatus =
   | "error"
   | "cancelled";
 
+export type StuckCase = {
+  us?: string;
+  ca?: string;
+  title: string;
+  grepHint?: string;
+  attempts: number;
+  reason: string;
+};
+
 export type PlaywrightFailure = {
   title: string;
   file?: string;
@@ -121,6 +130,7 @@ export type OrchestratorRun = {
   triage?: TriageResult;
   coverage?: CoverageSummary;
   coverageMdPath?: string;
+  stuckCases?: StuckCase[];
   rounds: number;
   error?: string;
   log: string[];

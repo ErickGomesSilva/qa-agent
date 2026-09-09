@@ -101,6 +101,9 @@ export function styleLogLine(raw: string, tick: number): string {
   const notice = isScriptNotice(raw);
   if (/^━━|^──/.test(raw)) return ink(` ${raw.replace(/[━─]/g, "━")} `, theme.bold, theme.accentHi);
   if (notice) return `${ink("◆", theme.ok)} ${ink(raw, theme.fg)}`;
+  if (/NÃO FINALIZADO|NAO FINALIZADO|★/.test(raw)) {
+    return `${ink("★", theme.warn)} ${ink(raw, theme.warn, theme.bold)}`;
+  }
   if (/erro fatal|error:|fatal/i.test(raw) || raw.startsWith("Erro:") || raw.startsWith("Error:")) {
     return `${ink("×", theme.err)} ${ink(raw, theme.err)}`;
   }

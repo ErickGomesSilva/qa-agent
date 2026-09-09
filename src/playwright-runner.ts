@@ -79,6 +79,7 @@ export async function runPlaywright(opts: {
   runId: string;
   env?: Record<string, string>;
   onLog?: (line: string) => void;
+  grepInvert?: string;
 }): Promise<PlaywrightOutcome> {
   const cli = playwrightCli();
   if (!existsSync(cli)) {
@@ -94,11 +95,16 @@ export async function runPlaywright(opts: {
   if (opts.grep) {
     args.push("--grep", opts.grep);
   }
+  if (opts.grepInvert) {
+    args.push("--grep-invert", opts.grepInvert);
+  }
   if (config.playwrightHeaded) {
     args.push("--headed");
   }
 
-  opts.onLog?.(`▸ fase: Playwright — grep=${opts.grep || "(todos)"} max-failures=1`);
+  opts.onLog?.(
+    `▸ fase: Playwright — grep=${opts.grep || "(todos)"}${opts.grepInvert ? ` invert=${opts.grepInvert}` : ""} max-failures=1`,
+  );
 
   const { stdout, stderr, exitCode } = await spawnNode(args, opts.e2eDir, opts.env, opts.onLog);
   const combined = `${stderr}\n${stdout}`;

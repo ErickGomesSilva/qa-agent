@@ -48,6 +48,7 @@ function snapshot() {
     strictCoverage: envBool("STRICT_COVERAGE", false),
     autoDowngradeStubs: envBool("AUTO_DOWNGRADE_STUBS", true),
     deepenLimit: Math.max(1, Number(env("DEEPEN_LIMIT", "15")) || 15),
+    testeResumeLimit: Math.max(1, Number(env("TESTE_RESUME_LIMIT", "5")) || 5),
     massaUnblockLimit: Math.max(1, Number(env("MASSA_UNBLOCK_LIMIT", "5")) || 5),
     massaGenerateLimit: Math.max(0, Number(env("MASSA_GENERATE_LIMIT", "10")) || 10),
     massaApplyLimit: Math.max(0, Number(env("MASSA_APPLY_LIMIT", "5")) || 5),

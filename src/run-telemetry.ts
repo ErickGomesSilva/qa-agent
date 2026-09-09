@@ -101,6 +101,9 @@ export function applyRunTelemetry(prev: RunTelemetry, line: string): RunTelemetr
   if (/^tour:/i.test(trimmed) || /^jornada gravada/i.test(trimmed)) {
     return { phase: "Jornada", detail: trimmed.replace(/^tour:\s*/i, "") };
   }
+  if (/NÃO FINALIZADO|NAO FINALIZADO/i.test(trimmed)) {
+    return { phase: "Nao finalizado", detail: trimmed };
+  }
 
   return prev;
 }
