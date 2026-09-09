@@ -13,6 +13,7 @@ import {
 import { upsertEnv } from "./envfile.ts";
 import { getLocale, parseLocale, setLocale, t, type Locale } from "./i18n.ts";
 import { validateLlmAuth } from "./llm/run.ts";
+import { defaultBaseUrl, LLM_PRESETS } from "./llm/presets.ts";
 import type { LlmModel, LlmProvider } from "./llm/types.ts";
 import { hasCompleteSetup, loadSettings, saveSettings, type AppSettings } from "./settings.ts";
 import type { AppCredentials, AuthKind, CreateRunBody } from "./types.ts";
@@ -76,17 +77,14 @@ async function collectApiKey(rl: Interface): Promise<{
   const provider = (await askChoice(
     rl,
     t("wiz.providerQ"),
-    [
-      { id: "cursor", label: t("wiz.cursor") },
-      { id: "openai", label: t("wiz.openai") },
-    ],
-    config.llmProvider === "openai" ? "openai" : "cursor",
+    LLM_PRESETS.map((p) => ({ id: p.id, label: `${p.label}` })),
+    config.llmProvider,
   )) as LlmProvider;
 
-  let baseUrl = config.llmBaseUrl || "https://api.openai.com/v1";
-  if (provider === "openai") {
+  let baseUrl = defaultBaseUrl(provider) || config.llmBaseUrl || "";
+  if (provider !== "cursor") {
     print(t("wiz.baseUrlNeed"));
-    baseUrl = (await ask(rl, t("wiz.baseUrl"), baseUrl)).trim() || "https://api.openai.com/v1";
+    baseUrl = (await ask(rl, t("wiz.baseUrl"), baseUrl || defaultBaseUrl(provider))).trim() || defaultBaseUrl(provider);
   }
 
   if (config.llmApiKey) {

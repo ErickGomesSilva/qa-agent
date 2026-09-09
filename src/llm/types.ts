@@ -1,4 +1,4 @@
-export type LlmProvider = "cursor" | "openai";
+export type LlmProvider = "cursor" | "openai" | "anthropic" | "openrouter" | "groq" | "custom";
 
 export type LlmModel = {
   id: string;

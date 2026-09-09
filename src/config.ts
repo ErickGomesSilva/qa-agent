@@ -3,6 +3,7 @@ import { dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { SettingSource } from "@cursor/sdk";
 import { detectWebhookProvider, type WebhookProvider } from "./webhook.ts";
+import { parseLlmProvider } from "./llm/presets.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 loadDotenv({ path: join(root, ".env") });
@@ -31,13 +32,13 @@ export const ROOT = root;
 
 function snapshot() {
   const providerRaw = env("LLM_PROVIDER", "cursor").toLowerCase();
-  const llmProvider = providerRaw === "openai" || providerRaw === "openai-compatible" ? "openai" : "cursor";
+    const llmProvider = parseLlmProvider(providerRaw);
   const llmApiKey = env("LLM_API_KEY") || env("CURSOR_API_KEY");
   const llmModel = env("LLM_MODEL") || env("CURSOR_MODEL", "composer-2.5");
   return {
     host: env("HOST", "127.0.0.1"),
     port: Number(env("PORT", "8787")) || 8787,
-    llmProvider: llmProvider as "cursor" | "openai",
+    llmProvider,
     llmApiKey,
     llmBaseUrl: env("LLM_BASE_URL", "https://api.openai.com/v1"),
     llmModel,

@@ -1,6 +1,15 @@
 import type { LlmAgentOpts, LlmAgentResult, LlmModel } from "./types.ts";
 import { notifyTool, fileTools, runTool } from "./tools.ts";
 
+export function openaiExtraHeaders(baseUrl: string): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (/openrouter\.ai/i.test(baseUrl)) {
+    headers["HTTP-Referer"] = "https://github.com/ErickGomesSilva/qa-agent";
+    headers["X-Title"] = "QA Agent";
+  }
+  return headers;
+}
+
 export function normalizeOpenAiBase(url: string): string {
   let u = url.trim().replace(/\/$/, "");
   if (!u) u = "https://api.openai.com/v1";
@@ -10,8 +19,9 @@ export function normalizeOpenAiBase(url: string): string {
 
 export async function listOpenAiModels(apiKey: string, baseUrl: string): Promise<LlmModel[]> {
   const base = normalizeOpenAiBase(baseUrl);
+  const extra = openaiExtraHeaders(base);
   const res = await fetch(`${base}/models`, {
-    headers: { authorization: `Bearer ${apiKey}` },
+    headers: { authorization: `Bearer ${apiKey}`, ...extra },
   });
   if (!res.ok) {
     const text = await res.text();
@@ -59,6 +69,7 @@ export async function runOpenAiAgent(
       headers: {
         authorization: `Bearer ${apiKey}`,
         "content-type": "application/json",
+        ...openaiExtraHeaders(base),
       },
       body: JSON.stringify({
         model,

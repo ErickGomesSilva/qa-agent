@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "no
 import { isAbsolute, join, resolve } from "node:path";
 import { config, refreshConfig } from "./config.ts";
 import { listLlmModels, validateLlmAuth } from "./llm/run.ts";
+import { defaultBaseUrl, providerNeedsUrl } from "./llm/presets.ts";
 import type { LlmModel, LlmProvider } from "./llm/types.ts";
 import {
   formatCredenciaisMdMulti,
@@ -302,7 +303,11 @@ export async function saveApiKey(opts: {
 }): Promise<LlmModel[]> {
   const trimmed = opts.apiKey.trim();
   if (!trimmed) throw new Error(t("chave.needKey"));
-  const baseUrl = (opts.baseUrl || "https://api.openai.com/v1").trim();
+  const baseUrl = (
+    providerNeedsUrl(opts.provider)
+      ? opts.baseUrl || defaultBaseUrl(opts.provider)
+      : defaultBaseUrl(opts.provider) || opts.baseUrl || ""
+  ).trim();
   const models = await validateLlmAuth({
     provider: opts.provider,
     apiKey: trimmed,
@@ -330,6 +335,19 @@ export async function saveApiKey(opts: {
 export async function loadModels(): Promise<LlmModel[]> {
   if (!config.llmApiKey) throw new Error(t("modelo.needKey"));
   return listLlmModels();
+}
+
+export function saveLlmProvider(provider: LlmProvider, baseUrlRaw: string): void {
+  const baseUrl = (
+    providerNeedsUrl(provider) ? baseUrlRaw || defaultBaseUrl(provider) : defaultBaseUrl(provider)
+  ).trim();
+  upsertEnv({
+    LLM_PROVIDER: provider,
+    LLM_BASE_URL: baseUrl,
+  });
+  refreshConfig();
+  patchSettings({ llmProvider: provider, llmBaseUrl: baseUrl || undefined });
+  addEvidence("modelo", t("modelo.providerSaved", { provider, url: baseUrl || "—" }));
 }
 
 export function saveModel(id: string): void {

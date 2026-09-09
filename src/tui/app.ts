@@ -1,4 +1,11 @@
 import type { LlmModel, LlmProvider } from "../llm/types.ts";
+import {
+  cycleLlmProvider,
+  defaultBaseUrl,
+  LLM_PRESETS,
+  llmProviderFromDigit,
+  providerNeedsUrl,
+} from "../llm/presets.ts";
 import type { OrchestratorRun } from "../types.ts";
 import { startRun } from "../orchestrator.ts";
 import { applyRunTelemetry, formatElapsed, type RunTelemetry } from "../run-telemetry.ts";
@@ -27,6 +34,7 @@ import {
   saveCredentials,
   saveCredentialsFile,
   saveLocale,
+  saveLlmProvider,
   saveModel,
   saveOptions,
   saveRequisitos,
@@ -538,8 +546,16 @@ function langChips(locale: Locale): string[] {
   return [chip("PT-BR", locale === "pt-BR"), chip("EN-US", locale === "en-US")];
 }
 
+function providerChips(current: LlmProvider): string[] {
+  return LLM_PRESETS.map((p, i) => chip(`${i + 1} ${p.label.toUpperCase()}`, current === p.id));
+}
+
 function chaveFieldCount(state: State): number {
-  return state.draft.provider === "openai" ? 3 : 2;
+  return state.draft.provider === "cursor" ? 2 : 3;
+}
+
+function modeloFieldCount(state: State): number {
+  return state.draft.provider === "cursor" ? 1 : 2;
 }
 
 function webhookFieldCount(): number {
@@ -561,16 +577,9 @@ function tabBody(state: State, id: StepId, width: number): string[] {
         (config.llmApiKey ? `${config.llmProvider} ${mask(config.llmApiKey)}` : t("common.notSaved")),
     );
     lines.push("");
-    lines.push(
-      choiceRow(
-        t("chave.provider"),
-        [chip("1 CURSOR", state.draft.provider === "cursor"), chip("2 OPENAI", state.draft.provider === "openai")],
-        state.field === 0,
-        t("help.hint12"),
-      ),
-    );
+    lines.push(choiceRow(t("chave.provider"), providerChips(state.draft.provider), state.field === 0, t("help.hint16")));
     lines.push("");
-    if (state.draft.provider === "openai") {
+    if (state.draft.provider !== "cursor") {
       lines.push(...inputField(t("chave.baseUrl"), state.draft.llmBaseUrl, state.field === 1, width));
       lines.push("");
       lines.push(...inputField(t("chave.apiKey"), state.draft.chave, state.field === 2, width, true));
@@ -584,8 +593,18 @@ function tabBody(state: State, id: StepId, width: number): string[] {
 
   if (id === "modelo") {
     pushMuted(t("modelo.intro"));
-    pushMuted(t("common.current") + ": " + (config.llmModel || t("common.none")));
+    pushMuted(
+      t("common.current") +
+        ": " +
+        `${config.llmProvider} ${config.llmModel || t("common.none")}`,
+    );
     lines.push("");
+    lines.push(choiceRow(t("modelo.provider"), providerChips(state.draft.provider), state.field === 0, t("help.hint16")));
+    lines.push("");
+    if (state.draft.provider !== "cursor") {
+      lines.push(...inputField(t("chave.baseUrl"), state.draft.llmBaseUrl, state.field === 1, width));
+      lines.push("");
+    }
     if (state.modelsLoading) {
       lines.push(`  ${ink(spinnerFrame(state.tick), theme.info)} ${ink(t("modelo.loading"), theme.info)}`);
     } else if (!config.llmApiKey) {
@@ -804,19 +823,22 @@ function paint(state: State, immediate = false): void {
 function activeDraft(state: State): { get: () => string; set: (v: string) => void } | undefined {
   const id = STEPS[state.tab];
   if (id === "chave") {
-    if (state.draft.provider === "openai") {
-      if (state.field === 1)
-        return { get: () => state.draft.llmBaseUrl, set: (v) => { state.draft.llmBaseUrl = v; } };
-      if (state.field === 2)
-        return { get: () => state.draft.chave, set: (v) => { state.draft.chave = v; } };
+    if (state.draft.provider === "cursor") {
+      if (state.field === 1) return { get: () => state.draft.chave, set: (v) => { state.draft.chave = v; } };
       return undefined;
     }
-    if (state.field === 1) return { get: () => state.draft.chave, set: (v) => { state.draft.chave = v; } };
+    if (state.field === 1)
+      return { get: () => state.draft.llmBaseUrl, set: (v) => { state.draft.llmBaseUrl = v; } };
+    if (state.field === 2)
+      return { get: () => state.draft.chave, set: (v) => { state.draft.chave = v; } };
     return undefined;
   }
   if (id === "requisitos")
     return { get: () => state.draft.requisitos, set: (v) => { state.draft.requisitos = v; } };
   if (id === "url") return { get: () => state.draft.url, set: (v) => { state.draft.url = v; } };
+  if (id === "modelo" && state.draft.provider !== "cursor" && state.field === 1) {
+    return { get: () => state.draft.llmBaseUrl, set: (v) => { state.draft.llmBaseUrl = v; } };
+  }
   if (id === "webhook") {
     if (state.field === 1) return { get: () => state.draft.webhook, set: (v) => { state.draft.webhook = v; } };
     return undefined;
@@ -877,6 +899,7 @@ async function saveTab(state: State): Promise<void> {
       state.modelIndex = idx >= 0 ? idx : 0;
       state.flash = t("chave.ok", { provider: state.draft.provider, n: state.models.length });
     } else if (id === "modelo") {
+      saveLlmProvider(state.draft.provider, state.draft.llmBaseUrl);
       if (!state.models.length) {
         state.modelsLoading = true;
         paint(state);
@@ -1086,6 +1109,11 @@ export async function runTui(): Promise<void> {
             const dir = key.shift ? -1 : 1;
             state.field = (state.field + dir + webhookFieldCount()) % webhookFieldCount();
           }
+          if (id === "modelo") {
+            const n = modeloFieldCount(state);
+            const dir = key.shift ? -1 : 1;
+            state.field = (state.field + dir + n) % n;
+          }
           if (id === "opcoes") {
             const dir = key.shift ? -1 : 1;
             state.field = (state.field + dir + opcoesFieldCount()) % opcoesFieldCount();
@@ -1097,12 +1125,40 @@ export async function runTui(): Promise<void> {
         if (
           id === "chave" &&
           state.field === 0 &&
-          (key.type === "left" || key.type === "right" || (key.type === "char" && (key.ch === "1" || key.ch === "2")))
+          (key.type === "left" ||
+            key.type === "right" ||
+            (key.type === "char" && llmProviderFromDigit(key.ch)))
         ) {
-          if (key.type === "char") state.draft.provider = key.ch === "2" ? "openai" : "cursor";
-          else state.draft.provider = state.draft.provider === "cursor" ? "openai" : "cursor";
+          if (key.type === "char") {
+            state.draft.provider = llmProviderFromDigit(key.ch) ?? state.draft.provider;
+          } else {
+            state.draft.provider = cycleLlmProvider(state.draft.provider, key.type === "right" ? 1 : -1);
+          }
+          if (!providerNeedsUrl(state.draft.provider) || !state.draft.llmBaseUrl.trim()) {
+            state.draft.llmBaseUrl = defaultBaseUrl(state.draft.provider);
+          }
           if (state.field >= chaveFieldCount(state)) state.field = 0;
           state.models = [];
+          paint(state);
+          return;
+        }
+
+        if (
+          id === "modelo" &&
+          state.field === 0 &&
+          (key.type === "left" ||
+            key.type === "right" ||
+            (key.type === "char" && llmProviderFromDigit(key.ch)))
+        ) {
+          if (key.type === "char") {
+            state.draft.provider = llmProviderFromDigit(key.ch) ?? state.draft.provider;
+          } else {
+            state.draft.provider = cycleLlmProvider(state.draft.provider, key.type === "right" ? 1 : -1);
+          }
+          state.draft.llmBaseUrl = defaultBaseUrl(state.draft.provider) || state.draft.llmBaseUrl;
+          state.models = [];
+          state.flash = t("modelo.providerHint");
+          state.flashErr = false;
           paint(state);
           return;
         }

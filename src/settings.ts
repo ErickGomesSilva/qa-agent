@@ -3,11 +3,13 @@ import { join } from "node:path";
 import { config } from "./config.ts";
 import { parseLocale, type Locale } from "./i18n.ts";
 import type { WebhookProvider } from "./webhook.ts";
+import { parseLlmProvider } from "./llm/presets.ts";
+import type { LlmProvider } from "./llm/types.ts";
 import type { AuthKind } from "./types.ts";
 
 export type AppSettings = {
   locale?: Locale;
-  llmProvider?: "cursor" | "openai";
+  llmProvider?: LlmProvider;
   llmBaseUrl?: string;
   cursorModel?: string;
   requisitosPath?: string;
@@ -49,7 +51,7 @@ export function loadSettings(): AppSettings {
   const fromFile = existsSync(settingsPath()) ? readJson(settingsPath()) : {};
   const raw = { ...fromLegacy, ...fromFile };
   const authKind = raw.authKind === "cpf" || raw.authKind === "email" ? raw.authKind : undefined;
-  const provider = raw.llmProvider === "openai" ? "openai" : raw.llmProvider === "cursor" ? "cursor" : undefined;
+  const provider = typeof raw.llmProvider === "string" ? parseLlmProvider(raw.llmProvider) : undefined;
   return {
     locale: parseLocale(raw.locale),
     llmProvider: provider,
