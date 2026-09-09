@@ -15,7 +15,18 @@ node instalar.mjs
 # dev without PATH: npm install && npm run typecheck
 ```
 
+`npm install` / `node instalar.mjs` in a git clone configures `.githooks/pre-commit` automatically (`npm run setup:hooks`).
+
 Do not commit `.env`, `data/`, or credential files.
+
+## Security check
+
+```bash
+npm run security-check          # arquivos staged (mesmo que o pre-commit)
+npm run security-check -- --all # working tree inteiro
+```
+
+The pre-commit hook blocks staged `.env`, `data/`, `credenciais.*`, `mcp.json`, `.auth/`, `.pem`, and obvious secret patterns. Bypass only when you are certain: `git commit --no-verify`.
 
 ## Security checklist (before opening a PR)
 

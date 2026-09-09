@@ -1,0 +1,4 @@
+#!/bin/sh
+# Bloqueia commit acidental de .env, data/, credenciais e segredos óbvios.
+node scripts/security-check.mjs --staged
+exit $?

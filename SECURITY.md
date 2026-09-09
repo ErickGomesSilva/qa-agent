@@ -29,6 +29,8 @@ QA Agent stores secrets **only on your machine**:
 
 These paths are in `.gitignore`. Never paste them into issues, pull requests, or chat logs.
 
+Contributors: run `npm run security-check` before pushing. Git clones auto-enable a **pre-commit hook** (`.githooks/pre-commit`) that runs the same check on staged files.
+
 Default install folders (also **outside** the git clone, but same rules apply):
 
 - Windows: `%LOCALAPPDATA%\qa-agent`

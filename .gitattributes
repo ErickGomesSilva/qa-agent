@@ -1,4 +1,5 @@
 install.sh text eol=lf
+.githooks/* text eol=lf
 instalar text eol=lf
 desinstalar text eol=lf
 bin/qaagent text eol=lf

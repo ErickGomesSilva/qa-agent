@@ -3,6 +3,8 @@
  * Instalador unificado QA Agent — Windows, Linux e macOS.
  * Uso: node instalar.mjs   |   ./instalar   |   instalar.cmd
  */
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import {
   BIN_DIR,
   CLI_HELP,
@@ -54,6 +56,11 @@ function main() {
   if (run("npx", ["--yes", "playwright", "install", "chromium"]) !== 0) process.exit(1);
 
   writeChromiumMarker();
+
+  if (existsSync(join(ROOT, ".git"))) {
+    log("Configurando git hooks (security-check no pre-commit)...");
+    run("node", ["scripts/setup-git-hooks.mjs"]);
+  }
 
   let pathNote = "";
   if (process.platform === "win32") {
