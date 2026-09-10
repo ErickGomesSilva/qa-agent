@@ -20,7 +20,7 @@ QA Agent stores secrets **only on your machine**:
 
 | Path | Contents |
 |---|---|
-| `.env` | LLM API keys, webhooks, `QA_AGENT_TOKEN` |
+| `.env` | LLM API keys, webhooks, `QA_AGENT_TOKEN`, git PATs (`QA_GIT_TOKEN`, `GITHUB_TOKEN`, `AZURE_DEVOPS_PAT`, …) |
 | `data/settings.json` | Paths, model, locale, run options, active project slug |
 | `data/projects/<slug>/scripts/credenciais.md` (or `.json`) | Application logins under test |
 | `data/workspace/scripts/credenciais.md` | Legacy default project only |

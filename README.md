@@ -85,15 +85,17 @@ Manual dev setup without installer: `npm install`, `npx playwright install chrom
 |---|---|---|
 | F1 | Key | Cursor / OpenAI API key |
 | F2 | Model | Models for that key |
-| F3 | Reqs | Requirements folder |
+| F3 | Reqs | Local folder **or** Git URL (GitHub, Gitea, Azure DevOps, GitLab, Bitbucket) |
 | F4 | URL | App under test |
 | F5 | Login | 1–10 accounts, or a `.md` / `.json` file |
-| F6 | Notify | Webhook (optional, PRODUTO only) |
+| F6 | Notify | Webhook (optional; confirmed app bugs, not test errors) |
 | F7 | Options | **Run all**, k6, mass, tour, headed, grep, locale, continue after PRODUTO, retest quarantine |
 | F8 | Mission | Start the run + live telemetry |
 | F9 | Consult | **1** reports · **2** matrix · **3** quarantine · **4** journeys · **5** problems |
 
 Enter saves the tab. On F8, Enter starts a run. No TTY: `qaagent --plain`. Reconfigure: `qaagent --plain --reconfigure`.
+
+F3 accepts a **local folder** or a **Git URL**: GitHub, Gitea/Forgejo/Codeberg (`/src/branch/…`), Azure DevOps (`_git/…?path=`), GitLab (`/-/tree/…`), Bitbucket, or `https://host/repo.git docs/requisitos`. The clone lives in `data/cache/git/` (gitignored) and is refreshed each run. Private repos: `QA_GIT_TOKEN` or a host PAT (`GITHUB_TOKEN`, `AZURE_DEVOPS_PAT`, `GITEA_TOKEN`, …). **Git must be on PATH.**
 
 ### F7 — Run all
 

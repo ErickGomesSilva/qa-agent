@@ -1,5 +1,4 @@
-import { existsSync, statSync, writeFileSync } from "node:fs";
-import { isAbsolute, resolve } from "node:path";
+import { existsSync, writeFileSync } from "node:fs";
 import type { Interface } from "node:readline/promises";
 import { ask, askChoice, askSecret, askYesNo } from "./ask.ts";
 import { config, refreshConfig } from "./config.ts";
@@ -19,21 +18,12 @@ import { hasCompleteSetup, loadSettings, saveSettings, type AppSettings } from "
 import type { AppCredentials, AuthKind, CreateRunBody } from "./types.ts";
 import { credenciaisPath, ensureWorkspace, listSpecFiles, scriptsDir } from "./workspace.ts";
 import { applyProject } from "./projects.ts";
-import { projectSlugFromPath } from "./project-name.ts";
+import { materializeRequisitos, projectSlugFromReqInput } from "./req-source.ts";
 import { isValidWebhookUrl } from "./webhook.ts";
 import { printKv, printSection } from "./tui/plain.ts";
 
 function print(line = ""): void {
   console.log(line);
-}
-
-function requireDir(path: string, label: string): string {
-  if (!path.trim()) throw new Error(t("err.needDir", { label: label.toLowerCase() }));
-  const abs = isAbsolute(path) ? path : resolve(path);
-  if (!existsSync(abs) || !statSync(abs).isDirectory()) {
-    throw new Error(t("err.notDir", { label, path: abs }));
-  }
-  return abs;
 }
 
 function normalizeUrl(raw: string): string {
@@ -294,10 +284,8 @@ export async function runWizard(
     refreshConfig();
 
     print();
-    const requisitosPath = requireDir(
-      await ask(rl, t("wiz.reqsPath"), settings.requisitosPath),
-      t("reqs.label"),
-    );
+    const requisitosInput = (await ask(rl, t("wiz.reqsPath"), settings.requisitosPath)).trim();
+    materializeRequisitos(requisitosInput, { update: true });
 
     print();
     const baseUrl = normalizeUrl(await ask(rl, t("wiz.appUrl"), settings.baseUrl));
@@ -332,13 +320,13 @@ export async function runWizard(
     });
     refreshConfig();
 
-    const slug = projectSlugFromPath(requisitosPath);
+    const slug = projectSlugFromReqInput(requisitosInput);
     const next: AppSettings = {
       locale,
       llmProvider: provider,
       llmBaseUrl,
       cursorModel: model,
-      requisitosPath,
+      requisitosPath: requisitosInput,
       project: slug,
       baseUrl,
       authKind: creds.authKind,
@@ -365,7 +353,7 @@ export async function runWizard(
     return {
       regenerate,
       body: {
-        requisitosPath,
+        requisitosPath: requisitosInput,
         baseUrl,
         authKind: creds.authKind,
         login: creds.login,
@@ -378,7 +366,7 @@ export async function runWizard(
     };
   }
 
-  const requisitosPath = requireDir(settings.requisitosPath ?? "", t("reqs.label"));
+  materializeRequisitos(settings.requisitosPath ?? "", { update: true });
   const baseUrl = normalizeUrl(settings.baseUrl ?? "");
   const mdPath = resolveCredentialsMdPath(settings.credentialsMd || "credenciais.md", scriptsDir());
   const parsed = readCredenciaisFile(mdPath);
@@ -407,7 +395,7 @@ export async function runWizard(
   return {
     regenerate,
     body: {
-      requisitosPath,
+      requisitosPath: settings.requisitosPath ?? "",
       baseUrl,
       authKind: creds.authKind,
       login: creds.login,

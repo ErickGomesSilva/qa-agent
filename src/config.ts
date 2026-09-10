@@ -1,9 +1,10 @@
 import { config as loadDotenv } from "dotenv";
-import { dirname, isAbsolute, join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { SettingSource } from "@cursor/sdk";
 import { detectWebhookProvider, type WebhookProvider } from "./webhook.ts";
 import { parseLlmProvider } from "./llm/presets.ts";
+import { materializeRequisitos } from "./req-source.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 loadDotenv({ path: join(root, ".env") });
@@ -110,5 +111,5 @@ export function resolveRequisitosPath(input?: string): string {
   if (!path) {
     throw new Error("Informe a pasta de requisitos (CLI ou requisitosPath no POST)");
   }
-  return isAbsolute(path) ? path : join(process.cwd(), path);
+  return materializeRequisitos(path, { update: true });
 }

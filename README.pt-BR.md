@@ -83,15 +83,17 @@ Sem instalador: `npm install`, `npx playwright install chromium`, `npm start`.
 |---|---|---|
 | F1 | Chave | API Cursor / OpenAI / Claude / OpenRouter / Groq / custom |
 | F2 | Modelo | Modelos da chave escolhida |
-| F3 | Requisitos | Pasta com US/CA |
+| F3 | Requisitos | Pasta local **ou** URL Git (GitHub, Gitea, Azure DevOps, GitLab, Bitbucket) |
 | F4 | URL | Aplicação sob teste |
 | F5 | Login | 1–10 contas ou arquivo `.md` / `.json` |
-| F6 | Webhook | Opcional, só PRODUTO |
+| F6 | Webhook | Opcional; avisa bug confirmado na aplicação (não erro de teste) |
 | F7 | Opções | **Rodar tudo**, k6, massa, jornada, headed, grep, idioma, seguir após PRODUTO, retestar quarentena |
 | F8 | Missão | Inicia rodada + telemetria ao vivo |
 | F9 | Consulta | **1** relatórios · **2** matriz · **3** quarentena · **4** jornadas · **5** problemas |
 
 Enter grava a aba. Na F8, Enter inicia a rodada. Sem TTY: `qaagent --plain`. Reconfigurar: `qaagent --plain --reconfigure`.
+
+Na F3 vale **pasta local** ou **URL Git**: GitHub, Gitea/Forgejo/Codeberg (`/src/branch/…`), Azure DevOps (`_git/…?path=`), GitLab (`/-/tree/…`), Bitbucket, ou `https://host/repo.git docs/requisitos`. O clone fica em `data/cache/git/` (não vai ao Git) e atualiza a cada missão. Repo privado: `QA_GIT_TOKEN` ou PAT do host (`GITHUB_TOKEN`, `AZURE_DEVOPS_PAT`, `GITEA_TOKEN`, …). **Git precisa estar no PATH.**
 
 Na F7, **Rodar tudo = SIM** liga k6, massa, jornada e navegador visível. Espaço alterna; Enter grava em `.env` + `data/settings.json`.
 

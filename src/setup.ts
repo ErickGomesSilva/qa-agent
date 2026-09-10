@@ -25,7 +25,7 @@ import { loadSettings, saveSettings, type AppSettings } from "./settings.ts";
 import type { AccessCredential, AuthKind, CreateRunBody } from "./types.ts";
 import { credenciaisPath, ensureWorkspace, listSpecFiles, scriptsDir } from "./workspace.ts";
 import { applyProject } from "./projects.ts";
-import { projectSlugFromPath } from "./project-name.ts";
+import { materializeRequisitos, looksLikeGitReqs, projectSlugFromReqInput } from "./req-source.ts";
 import { listAllReports } from "./coverage-list.ts";
 
 export type StepId =
@@ -220,7 +220,9 @@ export function getSteps(): StepView[] {
       id: "requisitos",
       f: 3,
       title: t("tab.requisitos"),
-      done: Boolean(s.requisitosPath && existsSync(s.requisitosPath)),
+      done: Boolean(
+        s.requisitosPath && (looksLikeGitReqs(s.requisitosPath) || existsSync(s.requisitosPath)),
+      ),
       summary: s.requisitosPath || t("common.pending"),
     },
     {
@@ -368,12 +370,13 @@ export function saveModel(id: string): void {
 }
 
 export function saveRequisitos(path: string): void {
-  const abs = requireDir(path, t("reqs.label"));
-  const slug = projectSlugFromPath(abs);
-  patchSettings({ requisitosPath: abs, project: slug });
+  const input = path.trim();
+  const abs = materializeRequisitos(input, { update: true });
+  const slug = projectSlugFromReqInput(input);
+  patchSettings({ requisitosPath: looksLikeGitReqs(input) ? input : abs, project: slug });
   applyProject(slug);
   ensureWorkspace();
-  addEvidence("requisitos", t("reqs.evidence", { path: abs }));
+  addEvidence("requisitos", t("reqs.evidence", { path: looksLikeGitReqs(input) ? input : abs }));
 }
 
 export function saveUrl(raw: string): void {

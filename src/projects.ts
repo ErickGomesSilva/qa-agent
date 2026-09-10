@@ -1,7 +1,8 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { config } from "./config.ts";
-import { projectSlugFromPath, slugifyProject } from "./project-name.ts";
+import { slugifyProject } from "./project-name.ts";
+import { projectSlugFromReqInput } from "./req-source.ts";
 import { saveSettings, loadSettings } from "./settings.ts";
 
 export function argvFlag(argv: string[], name: string): boolean {
@@ -59,7 +60,7 @@ export function resolveProjectSlug(opts?: {
   if (fromEnv) return slugifyProject(fromEnv);
   const settings = loadSettings();
   if (settings.project?.trim()) return slugifyProject(settings.project);
-  if (settings.requisitosPath?.trim()) return projectSlugFromPath(settings.requisitosPath);
+  if (settings.requisitosPath?.trim()) return projectSlugFromReqInput(settings.requisitosPath);
   return "default";
 }
 
