@@ -223,7 +223,11 @@ export function getSteps(): StepView[] {
       done: Boolean(
         s.requisitosPath && (looksLikeGitReqs(s.requisitosPath) || existsSync(s.requisitosPath)),
       ),
-      summary: s.requisitosPath || t("common.pending"),
+      summary: s.requisitosPath
+        ? gitTokenConfigured()
+          ? `${s.requisitosPath} · ${t("reqs.tokenOn")}`
+          : s.requisitosPath
+        : t("common.pending"),
     },
     {
       id: "url",
@@ -369,7 +373,16 @@ export function saveModel(id: string): void {
   addEvidence("modelo", t("modelo.evidence", { id: trimmed }));
 }
 
-export function saveRequisitos(path: string): void {
+export function gitTokenConfigured(): boolean {
+  return Boolean((process.env.QA_GIT_TOKEN ?? "").trim());
+}
+
+export function saveRequisitos(path: string, gitToken?: string): void {
+  const token = gitToken?.trim() ?? "";
+  if (token) {
+    upsertEnv({ QA_GIT_TOKEN: token });
+    refreshConfig();
+  }
   const input = path.trim();
   const abs = materializeRequisitos(input, { update: true });
   const slug = projectSlugFromReqInput(input);
@@ -377,6 +390,7 @@ export function saveRequisitos(path: string): void {
   applyProject(slug);
   ensureWorkspace();
   addEvidence("requisitos", t("reqs.evidence", { path: looksLikeGitReqs(input) ? input : abs }));
+  if (token) addEvidence("requisitos", t("reqs.tokenEvidence", { mask: maskSecret(token) }));
 }
 
 export function saveUrl(raw: string): void {

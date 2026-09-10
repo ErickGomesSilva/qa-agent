@@ -286,6 +286,11 @@ export async function runWizard(
     print();
     const requisitosInput = (await ask(rl, t("wiz.reqsPath"), settings.requisitosPath)).trim();
     materializeRequisitos(requisitosInput, { update: true });
+    print();
+    print(t("wiz.gitTokenIntro"));
+    if (process.env.QA_GIT_TOKEN) print(t("wiz.gitTokenHas"));
+    const gitTok = (await askSecret(rl, t("wiz.gitToken"))).trim();
+    if (gitTok) upsertEnv({ QA_GIT_TOKEN: gitTok });
 
     print();
     const baseUrl = normalizeUrl(await ask(rl, t("wiz.appUrl"), settings.baseUrl));

@@ -329,15 +329,16 @@ function authenticatedCloneUrl(cloneUrl: string, host: string): string {
 
 function tokenForHost(host: string): string {
   const e = process.env;
-  const any = (e.QA_GIT_TOKEN ?? "").trim();
+  const central = (e.QA_GIT_TOKEN ?? "").trim();
+  if (central) return central;
   const h = host.toLowerCase();
-  if (h.includes("github")) return (e.GITHUB_TOKEN ?? e.GH_TOKEN ?? any).trim();
-  if (h.includes("gitlab")) return (e.GITLAB_TOKEN ?? any).trim();
+  if (h.includes("github")) return (e.GITHUB_TOKEN ?? e.GH_TOKEN ?? "").trim();
+  if (h.includes("gitlab")) return (e.GITLAB_TOKEN ?? "").trim();
   if (h.includes("azure") || h.includes("visualstudio")) {
-    return (e.AZURE_DEVOPS_PAT ?? e.SYSTEM_ACCESSTOKEN ?? any).trim();
+    return (e.AZURE_DEVOPS_PAT ?? e.SYSTEM_ACCESSTOKEN ?? "").trim();
   }
-  if (h.includes("bitbucket")) return (e.BITBUCKET_TOKEN ?? any).trim();
-  return (e.GITEA_TOKEN ?? any).trim();
+  if (h.includes("bitbucket")) return (e.BITBUCKET_TOKEN ?? "").trim();
+  return (e.GITEA_TOKEN ?? "").trim();
 }
 
 function ensureGit(): void {

@@ -38,6 +38,7 @@ import {
   saveModel,
   saveOptions,
   saveRequisitos,
+  gitTokenConfigured,
   saveUrl,
   saveWebhook,
   seedEvidenceFromDisk,
@@ -125,6 +126,7 @@ type State = {
     llmBaseUrl: string;
     chave: string;
     requisitos: string;
+    gitToken: string;
     url: string;
     authKind: AuthKind;
     login: string;
@@ -201,6 +203,7 @@ function seedState(): State {
       llmBaseUrl: s.llmBaseUrl ?? config.llmBaseUrl ?? "https://api.openai.com/v1",
       chave: "",
       requisitos: s.requisitosPath ?? "",
+      gitToken: "",
       url: s.baseUrl ?? "",
       authKind: first?.authKind ?? "email",
       login: first?.login ?? "",
@@ -727,6 +730,10 @@ function modeloFieldCount(state: State): number {
   return state.draft.provider === "cursor" ? 1 : 2;
 }
 
+function reqsFieldCount(): number {
+  return 2;
+}
+
 function webhookFieldCount(): number {
   return 2;
 }
@@ -807,7 +814,11 @@ function tabBody(state: State, id: StepId, width: number): string[] {
   if (id === "requisitos") {
     pushMuted(t("reqs.intro"));
     lines.push("");
-    lines.push(...inputField(t("reqs.field"), state.draft.requisitos, true, width));
+    lines.push(...inputField(t("reqs.field"), state.draft.requisitos, state.field === 0, width));
+    lines.push("");
+    lines.push(...inputField(t("reqs.tokenField"), state.draft.gitToken, state.field === 1, width, true));
+    pushMuted(gitTokenConfigured() ? t("reqs.tokenOn") : t("reqs.tokenOff"));
+    pushMuted(t("reqs.tokenHint"));
     lines.push("");
     lines.push(...evidenceBlock(id, width));
     return lines;
@@ -1014,8 +1025,12 @@ function activeDraft(state: State): { get: () => string; set: (v: string) => voi
       return { get: () => state.draft.chave, set: (v) => { state.draft.chave = v; } };
     return undefined;
   }
-  if (id === "requisitos")
+  if (id === "requisitos") {
+    if (state.field === 1) {
+      return { get: () => state.draft.gitToken, set: (v) => { state.draft.gitToken = v; } };
+    }
     return { get: () => state.draft.requisitos, set: (v) => { state.draft.requisitos = v; } };
+  }
   if (id === "url") return { get: () => state.draft.url, set: (v) => { state.draft.url = v; } };
   if (id === "modelo" && state.draft.provider !== "cursor" && state.field === 1) {
     return { get: () => state.draft.llmBaseUrl, set: (v) => { state.draft.llmBaseUrl = v; } };
@@ -1096,7 +1111,8 @@ async function saveTab(state: State): Promise<void> {
         state.flash = t("modelo.saved", { id: m.id });
       }
     } else if (id === "requisitos") {
-      saveRequisitos(state.draft.requisitos);
+      saveRequisitos(state.draft.requisitos, state.draft.gitToken);
+      state.draft.gitToken = "";
       state.flash = t("reqs.saved");
     } else if (id === "url") {
       saveUrl(state.draft.url);
@@ -1289,6 +1305,10 @@ export async function runTui(): Promise<void> {
             const n = chaveFieldCount(state);
             const dir = key.shift ? -1 : 1;
             state.field = (state.field + dir + n) % n;
+          }
+          if (id === "requisitos") {
+            const dir = key.shift ? -1 : 1;
+            state.field = (state.field + dir + reqsFieldCount()) % reqsFieldCount();
           }
           if (id === "webhook") {
             const dir = key.shift ? -1 : 1;

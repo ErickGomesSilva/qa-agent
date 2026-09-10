@@ -93,7 +93,7 @@ Sem instalador: `npm install`, `npx playwright install chromium`, `npm start`.
 
 Enter grava a aba. Na F8, Enter inicia a rodada. Sem TTY: `qaagent --plain`. Reconfigurar: `qaagent --plain --reconfigure`.
 
-Na F3 vale **pasta local** ou **URL Git**: GitHub, Gitea/Forgejo/Codeberg (`/src/branch/…`), Azure DevOps (`_git/…?path=`), GitLab (`/-/tree/…`), Bitbucket, ou `https://host/repo.git docs/requisitos`. O clone fica em `data/cache/git/` (não vai ao Git) e atualiza a cada missão. Repo privado: `QA_GIT_TOKEN` ou PAT do host (`GITHUB_TOKEN`, `AZURE_DEVOPS_PAT`, `GITEA_TOKEN`, …). **Git precisa estar no PATH.**
+Na F3 vale **pasta local** ou **URL Git**: GitHub, Gitea/Forgejo/Codeberg (`/src/branch/…`), Azure DevOps (`_git/…?path=`), GitLab (`/-/tree/…`), Bitbucket, ou `https://host/repo.git docs/requisitos`. Repo privado: **Tab** no segundo campo da F3 e cole o token — a ferramenta grava `QA_GIT_TOKEN` no `.env` (não cole o PAT na URL). O clone fica em `data/cache/git/` e atualiza a cada missão. **Git precisa estar no PATH.**
 
 Na F7, **Rodar tudo = SIM** liga k6, massa, jornada e navegador visível. Espaço alterna; Enter grava em `.env` + `data/settings.json`.
 

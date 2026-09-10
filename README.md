@@ -95,7 +95,7 @@ Manual dev setup without installer: `npm install`, `npx playwright install chrom
 
 Enter saves the tab. On F8, Enter starts a run. No TTY: `qaagent --plain`. Reconfigure: `qaagent --plain --reconfigure`.
 
-F3 accepts a **local folder** or a **Git URL**: GitHub, Gitea/Forgejo/Codeberg (`/src/branch/…`), Azure DevOps (`_git/…?path=`), GitLab (`/-/tree/…`), Bitbucket, or `https://host/repo.git docs/requisitos`. The clone lives in `data/cache/git/` (gitignored) and is refreshed each run. Private repos: `QA_GIT_TOKEN` or a host PAT (`GITHUB_TOKEN`, `AZURE_DEVOPS_PAT`, `GITEA_TOKEN`, …). **Git must be on PATH.**
+F3 accepts a **local folder** or a **Git URL**: GitHub, Gitea/Forgejo/Codeberg (`/src/branch/…`), Azure DevOps (`_git/…?path=`), GitLab (`/-/tree/…`), Bitbucket, or `https://host/repo.git docs/requisitos`. Private repo: **Tab** to the second F3 field and paste the token — the tool stores `QA_GIT_TOKEN` in `.env` (do not put the PAT in the URL). The clone lives in `data/cache/git/` and is refreshed each run. **Git must be on PATH.**
 
 ### F7 — Run all
 
