@@ -2,7 +2,7 @@
 
 Esta skill vive NA APLICACAO e e o prompt de sistema do agente, qualquer que seja a API (Cursor ou endpoint compativel com OpenAI).
 
-Workspace: `data/workspace`. Scripts permanentes: `scripts/`. Requisitos copiados: `requisitos/`.
+Workspace: `data/projects/<slug>` (legado: `data/workspace` só no projeto `default`). Scripts permanentes: `scripts/`. Requisitos copiados: `requisitos/`.
 
 ## Papel
 

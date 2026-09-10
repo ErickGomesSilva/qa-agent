@@ -21,9 +21,10 @@ QA Agent stores secrets **only on your machine**:
 | Path | Contents |
 |---|---|
 | `.env` | LLM API keys, webhooks, `QA_AGENT_TOKEN` |
-| `data/settings.json` | Paths, model, locale, run options |
-| `data/workspace/scripts/credenciais.md` (or `.json`) | Application logins under test |
-| `data/workspace/scripts/.auth/` | Playwright session cookies |
+| `data/settings.json` | Paths, model, locale, run options, active project slug |
+| `data/projects/<slug>/scripts/credenciais.md` (or `.json`) | Application logins under test |
+| `data/workspace/scripts/credenciais.md` | Legacy default project only |
+| `data/projects/<slug>/scripts/.auth/` | Playwright session cookies |
 | `data/runs/` | Run logs and Playwright output |
 | `mcp.json` | Local MCP config (use `mcp.example.json` as template) |
 

@@ -2,9 +2,9 @@
 
 **Requisitos entram. Playwright sai. O modelo tria a falha — não é o oráculo do teste.**
 
-CLI local (TUI + modo texto) que transforma US/CA em specs Playwright, explora a aplicação, opcionalmente simula cliques reais, gera massa em runtime, executa a suíte e classifica a primeira falha com LLM.
+CLI local (TUI + modo texto) que transforma US/CA em specs Playwright, mapeia a UI por perfil, gera massa em runtime, executa a suíte e classifica a primeira falha com LLM.
 
-[English README](README.md)
+[English README](README.md) · [Wiki](https://github.com/ErickGomesSilva/qa-agent/wiki)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.13-339933)](https://nodejs.org)
@@ -44,6 +44,8 @@ curl -fsSL https://raw.githubusercontent.com/ErickGomesSilva/qa-agent/main/insta
 ```
 
 O script baixa o app para `%LOCALAPPDATA%\qa-agent` (Windows) ou `~/.local/share/qa-agent` (Linux/macOS), roda `npm install`, instala Chromium e coloca `qaagent` no PATH. Abra um **terminal novo** e rode `qaagent`.
+
+**Atualizar:** rode o mesmo comando de instalação. Ele baixa o código novo e **preserva** `.env` e `data/`.
 
 Pasta customizada: `$env:QA_AGENT_HOME="D:\tools\qa-agent"` (Windows) ou `QA_AGENT_HOME=~/qa-agent` (Unix) antes da linha de comando.
 
@@ -158,7 +160,7 @@ Na missão completa a ordem é:
 5. Auditoria, massa, Playwright, triagem (como antes)
 6. Relatórios: `COBERTURA-RESUMO-*.md` + **`PROBLEMAS.md`** — bloqueios (massa/perfil), falhas Playwright com erro, produto, HTTP 4xx do mapa, CAs sem spec, stubs. F9 → **5 Problemas**.
 
-Run **geral** e **focado** usam o mesmo motor. Recorte em `data/workspace/scripts/escopo.json` (exemplo em `escopo.example.json`) ou env:
+Run **geral** e **focado** usam o mesmo motor. Recorte em `data/projects/<slug>/scripts/escopo.json` (exemplo em `escopo.example.json`) ou env:
 
 ```json
 { "modo": "focado", "labels": ["operador"], "paths": ["/app/documentos"] }

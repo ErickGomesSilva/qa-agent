@@ -2,9 +2,9 @@
 
 **Requirements in. Playwright out. The model triages failures — it is not the test oracle.**
 
-Local CLI (TUI + plain mode) that turns user stories / acceptance criteria into Playwright specs, crawls the app, optionally simulates real clicks, generates runtime test data, runs the suite, and classifies the first failure with an LLM.
+Local CLI (TUI + plain mode) that turns user stories / acceptance criteria into Playwright specs, maps the UI per login, generates runtime test data, runs the suite, and classifies the first failure with an LLM.
 
-[Português](README.pt-BR.md)
+[Português](README.pt-BR.md) · [Wiki](https://github.com/ErickGomesSilva/qa-agent/wiki)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.13-339933)](https://nodejs.org)
@@ -12,13 +12,16 @@ Local CLI (TUI + plain mode) that turns user stories / acceptance criteria into 
 ## What it does
 
 1. **Reads** markdown requirements (US / CA).
-2. **Generates** Playwright specs tagged `@executavel`, `@rascunho`, `@massa`, or `@sem-ui`.
-3. **Explores** the UI (link crawler + optional headed **tour** that clicks like a person).
-4. **Seeds** optional runtime mass from `dados.json` / `dados.md`.
-5. **Runs** Playwright (`--max-failures=1`). On failure, an **agent triages**: TESTE / PRODUTO / MASSA / AMBIENTE / INCONCLUSIVO.
-6. **TESTE** + locator fix can auto-resume. **PRODUTO** can notify Discord / Slack / Teams.
+2. **Maps** the UI with Playwright **per F5 login** (menu, controls, HTTP 401/403) and joins that with the requirements → `ROTEIRO.json`.
+3. **Generates** Playwright specs from the roteiro (`loginAs` per profile; a page **heading is not** proof of a query), tagged `@executavel`, `@rascunho`, `@massa`, or `@sem-ui`.
+4. **Explores** remaining RNs (optional headed **tour**). A single-login crawl no longer drives generate.
+5. **Seeds** optional runtime mass from `dados.json` / `dados.md`.
+6. **Runs** Playwright (`--max-failures=1`). On failure, an **agent triages**: TESTE / PRODUTO / MASSA / AMBIENTE / INCONCLUSIVO.
+7. **TESTE** + locator fix can auto-resume. **PRODUTO** can notify Discord / Slack / Teams.
 
 Your Cursor/OpenAI key stays on your machine. The agent runtime is **local** — it can reach internal URLs that a cloud agent cannot.
+
+Full guide: [GitHub wiki](https://github.com/ErickGomesSilva/qa-agent/wiki).
 
 ## Requirements
 
@@ -43,6 +46,8 @@ curl -fsSL https://raw.githubusercontent.com/ErickGomesSilva/qa-agent/main/insta
 ```
 
 The script downloads the app to `%LOCALAPPDATA%\qa-agent` (Windows) or `~/.local/share/qa-agent` (Linux/macOS), runs `npm install`, installs Chromium, and adds `qaagent` to your user PATH. Open a **new** terminal and run `qaagent`.
+
+**Update:** run the same one-liner again. It refreshes the code and **keeps** `.env` and `data/`.
 
 Override install folder: `$env:QA_AGENT_HOME="D:\tools\qa-agent"` (Windows) or `QA_AGENT_HOME=~/qa-agent` (Unix) before the one-liner.
 
@@ -86,7 +91,7 @@ Manual dev setup without installer: `npm install`, `npx playwright install chrom
 | F6 | Notify | Webhook (optional, PRODUTO only) |
 | F7 | Options | **Run all**, k6, mass, tour, headed, grep, locale, continue after PRODUTO, retest quarantine |
 | F8 | Mission | Start the run + live telemetry |
-| F9 | Consult | **1** reports · **2** traceability matrix · **3** quarantine · **4** journeys |
+| F9 | Consult | **1** reports · **2** matrix · **3** quarantine · **4** journeys · **5** problems |
 
 Enter saves the tab. On F8, Enter starts a run. No TTY: `qaagent --plain`. Reconfigure: `qaagent --plain --reconfigure`.
 
@@ -103,6 +108,11 @@ qaagent --plain --deepen-stubs
 qaagent --plain --unblock-massa
 qaagent --plain --tour
 qaagent --plain --load-only
+qaagent --help
+qaagent --project Portal-Rural
+qaagent --projects
+qaagent --clean
+qaagent --clean --all --yes
 
 qaagent-audit
 qaagent-deepen
@@ -111,11 +121,26 @@ qaagent-massa
 qaagent-tour
 qaagent-k6
 qaagent-reports
+qaagent-clean
 ```
+
+## Multiple projects
+
+Each product lives under the tool (specs and mass are not mixed):
+
+`data/projects/<slug>/scripts/` — tests, mass, reports, credentials for that product.
+
+`<slug>` comes from the requirements folder (F3; parent of `requisitos/`), or `qaagent --project Name`, or `QA_PROJECT` in `.env`. List: `qaagent --projects`.
+
+A leftover `data/workspace` is only used for the `default` project if that folder still exists.
+
+## Wipe generated artifacts
+
+`qaagent --clean` (or `qaagent-clean`) deletes specs, `falhas/` reports, generated mass, and the copied requirements **for the current project**. It does **not** delete `.env`, `data/settings.json`, or `credenciais.md`. `--all` cleans every project plus `data/runs`. Without a TTY, pass `--yes`.
 
 ## Runtime mass and tour
 
-- **Mass:** `scripts/massa/dados.json` (or `dados.md`). Specs use `hasMassa()` / `getMassa()` from `helpers/massa`. `npm run generate-massa` / `qaagent-massa`.
+- **Mass:** `data/projects/<slug>/scripts/massa/dados.json` (or `dados.md`). Specs use `hasMassa()` / `getMassa()` from `helpers/massa`. `npm run generate-massa` / `qaagent-massa`.
 - **Tour:** headed Chromium that logs in, picks context, clicks visible controls (skips logout/delete). Evidence: `scripts/falhas/JORNADA.md`. `npm run tour` / `qaagent-tour`.
 
 A tour is **not** proof of every CA. Specs assert the *Then*. The tour records what a user could open by clicking.
