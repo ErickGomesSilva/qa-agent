@@ -102,6 +102,11 @@ qaagent --plain --deepen-stubs
 qaagent --plain --unblock-massa
 qaagent --plain --tour
 qaagent --plain --load-only
+qaagent --help
+qaagent --project Portal-Rural
+qaagent --projects
+qaagent --clean
+qaagent --clean --all --yes
 
 qaagent-audit
 qaagent-deepen
@@ -110,7 +115,22 @@ qaagent-massa
 qaagent-tour
 qaagent-k6
 qaagent-reports
+qaagent-clean
 ```
+
+## Vários projetos
+
+Cada produto fica numa pasta da ferramenta (não mistura specs/massa):
+
+`data/projects/<slug>/scripts/` — testes, massa, falhas, credenciais desse produto.
+
+O `<slug>` vem da pasta dos requisitos (F3; pai de `requisitos/`), ou `qaagent --project Nome`, ou `QA_PROJECT` no `.env`. Lista: `qaagent --projects`.
+
+Instalação antiga em `data/workspace` continua válida só no projeto `default`, se essa pasta ainda existir.
+
+## Limpar o que o agente gerou
+
+`qaagent --clean` (ou `qaagent-clean`) apaga specs, relatórios em `falhas/`, massa gerada e a cópia de requisitos **do projeto atual**. Não apaga `.env`, `data/settings.json` nem `credenciais.md`. `--all` limpa todos os projetos + `data/runs`. Sem TTY use `--yes`.
 
 ## Segredos
 

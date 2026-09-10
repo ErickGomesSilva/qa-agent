@@ -25,4 +25,4 @@ New-StartMenuShortcut -Name "$DisplayName (desbloquear massa)" -Target (Join-Pat
 New-StartMenuShortcut -Name "$DisplayName (gerar massa)" -Target (Join-Path $BinDir "qaagent-massa.cmd") -Description "Gera scripts/massa/dados.json em runtime"
 New-StartMenuShortcut -Name "$DisplayName (jornada no navegador)" -Target (Join-Path $BinDir "qaagent-tour.cmd") -Description "Simula uso real no Chromium (headed)"
 New-StartMenuShortcut -Name "$DisplayName (resumos)" -Target (Join-Path $BinDir "qaagent-reports.cmd") -Description "Lista relatorios COBERTURA-RESUMO"
-New-StartMenuShortcut -Name "$DisplayName (k6 carga)" -Target (Join-Path $BinDir "qaagent-k6.cmd") -Description "Smoke/carga HTTP com Grafana k6"
+New-StartMenuShortcut -Name "$DisplayName (limpar gerados)" -Target (Join-Path $BinDir "qaagent-clean.cmd") -Description "Apaga specs, relatorios e massa gerados (pede confirmacao)"

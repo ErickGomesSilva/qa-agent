@@ -1,3 +1,4 @@
+import { config } from "./config.ts";
 import { createRl } from "./ask.ts";
 import { startRun } from "./orchestrator.ts";
 import { applySavedSettings } from "./setup.ts";
@@ -33,6 +34,7 @@ async function runPlain(): Promise<void> {
     printKv(t("cli.reqs"), body.requisitosPath ?? "");
     printKv(t("cli.url"), body.baseUrl ?? "");
     printKv(t("cli.scripts"), scriptsDir());
+    printKv(t("cli.project"), `${config.projectSlug} → ${config.workspaceDir}`);
     print();
     const run = await startRun(body, {
       wait: true,
@@ -82,8 +84,8 @@ async function runPlain(): Promise<void> {
 }
 
 export async function runCli(): Promise<void> {
-  ensureWorkspace();
   applySavedSettings();
+  ensureWorkspace();
 
   const plain = process.argv.includes("--plain") || !process.stdin.isTTY || !process.stdout.isTTY;
   if (plain) {

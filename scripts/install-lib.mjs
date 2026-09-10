@@ -30,6 +30,7 @@ const CLI_ENTRIES = [
   { name: "qaagent-unblock", entry: "src/unblock-cli.ts", args: [] },
   { name: "qaagent-massa", entry: "src/massa-cli.ts", args: [] },
   { name: "qaagent-tour", entry: "src/tour-cli.ts", args: [] },
+  { name: "qaagent-clean", entry: "src/clean-cli.ts", args: [] },
 ];
 
 const PATH_MARKER_START = "# >>> qa-agent PATH >>>";
@@ -246,7 +247,7 @@ if (Test-Path $programs) { Remove-Item -Recurse -Force $programs }
 }
 
 export function writeChromiumMarker() {
-  const marker = join(ROOT, "data", "workspace", ".chromium-ok");
+  const marker = join(ROOT, "data", ".chromium-ok");
   mkdirSync(dirname(marker), { recursive: true });
   writeFileSync(marker, new Date().toISOString() + "\n", "utf8");
 }

@@ -17,7 +17,9 @@ import { defaultBaseUrl, LLM_PRESETS } from "./llm/presets.ts";
 import type { LlmModel, LlmProvider } from "./llm/types.ts";
 import { hasCompleteSetup, loadSettings, saveSettings, type AppSettings } from "./settings.ts";
 import type { AppCredentials, AuthKind, CreateRunBody } from "./types.ts";
-import { credenciaisPath, listSpecFiles, scriptsDir } from "./workspace.ts";
+import { credenciaisPath, ensureWorkspace, listSpecFiles, scriptsDir } from "./workspace.ts";
+import { applyProject } from "./projects.ts";
+import { projectSlugFromPath } from "./project-name.ts";
 import { isValidWebhookUrl } from "./webhook.ts";
 import { printKv, printSection } from "./tui/plain.ts";
 
@@ -330,12 +332,14 @@ export async function runWizard(
     });
     refreshConfig();
 
+    const slug = projectSlugFromPath(requisitosPath);
     const next: AppSettings = {
       locale,
       llmProvider: provider,
       llmBaseUrl,
       cursorModel: model,
       requisitosPath,
+      project: slug,
       baseUrl,
       authKind: creds.authKind,
       credentialsMd: mdPath,
@@ -344,6 +348,8 @@ export async function runWizard(
       webhookEnabled: Boolean(webhook),
     };
     saveSettings(next);
+    applyProject(slug);
+    ensureWorkspace();
 
     const specs = listSpecFiles();
     let regenerate = false;

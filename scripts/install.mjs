@@ -86,8 +86,11 @@ function main() {
     log(`  ${name}`);
   }
   log("");
-  log("  qaagent --plain          Modo texto");
-  log("  qaagent --reconfigure    Refazer configuração");
+  log("  qaagent --help            Ajuda");
+  log("  qaagent --plain           Modo texto");
+  log("  qaagent --clean           Apaga specs/relatórios/massa gerados");
+  log("  qaagent --projects        Lista pastas data/projects/");
+  log("  qaagent --reconfigure     Refazer configuração");
   log("");
   log("Flags extras no qaagent --plain:");
   log("  --audit-only   --deepen-stubs   --unblock-massa   --tour   --load-only");

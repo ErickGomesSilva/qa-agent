@@ -24,6 +24,8 @@ import { getLocale, parseLocale, setLocale, t, type Locale } from "./i18n.ts";
 import { loadSettings, saveSettings, type AppSettings } from "./settings.ts";
 import type { AccessCredential, AuthKind, CreateRunBody } from "./types.ts";
 import { credenciaisPath, ensureWorkspace, listSpecFiles, scriptsDir } from "./workspace.ts";
+import { applyProject } from "./projects.ts";
+import { projectSlugFromPath } from "./project-name.ts";
 import { listAllReports } from "./coverage-list.ts";
 
 export type StepId =
@@ -367,7 +369,10 @@ export function saveModel(id: string): void {
 
 export function saveRequisitos(path: string): void {
   const abs = requireDir(path, t("reqs.label"));
-  patchSettings({ requisitosPath: abs });
+  const slug = projectSlugFromPath(abs);
+  patchSettings({ requisitosPath: abs, project: slug });
+  applyProject(slug);
+  ensureWorkspace();
   addEvidence("requisitos", t("reqs.evidence", { path: abs }));
 }
 

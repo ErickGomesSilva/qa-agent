@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ROOT, config } from "./config.ts";
+import { applyResolvedProject } from "./projects.ts";
 import { credenciaisExample } from "./credentials.ts";
 import { massaDataExample } from "./massa/data.ts";
 
@@ -108,6 +109,7 @@ export function e2eEnv(): {
 }
 
 export function ensureWorkspace(): { workspace: string; scripts: string } {
+  applyResolvedProject();
   const workspace = config.workspaceDir;
   const scripts = scriptsDir();
   mkdirSync(join(scripts, "tests"), { recursive: true });
@@ -205,7 +207,7 @@ export function playwrightCli(): string {
 }
 
 export async function ensureChromium(onLog: (line: string) => void): Promise<void> {
-  const marker = join(config.workspaceDir, ".chromium-ok");
+  const marker = join(config.dataDir, ".chromium-ok");
   if (existsSync(marker)) return;
 
   onLog("Instalando Chromium do Playwright (primeira vez nesta máquina)…");
@@ -229,6 +231,6 @@ export async function ensureChromium(onLog: (line: string) => void): Promise<voi
       }
     });
   });
-  mkdirSync(config.workspaceDir, { recursive: true });
+  mkdirSync(config.dataDir, { recursive: true });
   writeFileSync(marker, `${new Date().toISOString()}\n`, "utf8");
 }

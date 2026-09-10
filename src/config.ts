@@ -75,7 +75,9 @@ function snapshot() {
     qaAgentToken: env("QA_AGENT_TOKEN"),
     settingSources: envSources(),
     dataDir: join(root, "data"),
-    workspaceDir: join(root, "data", "workspace"),
+    projectsDir: join(root, "data", "projects"),
+    projectSlug: env("QA_PROJECT") || "default",
+    workspaceDir: join(root, "data", "projects", env("QA_PROJECT") || "default"),
     mcpPath: join(root, "mcp.json"),
     discordWebhookUrl: env("DISCORD_WEBHOOK_URL"),
     webhookUrl: env("WEBHOOK_URL") || env("DISCORD_WEBHOOK_URL"),
@@ -94,7 +96,13 @@ export const config = snapshot();
 
 /** Relê process.env para o objeto `config` (depois de upsert no .env / wizard). */
 export function refreshConfig(): void {
+  const keepSlug = config.projectSlug;
+  const keepWs = config.workspaceDir;
   Object.assign(config, snapshot());
+  if (!env("QA_PROJECT") && keepSlug) {
+    config.projectSlug = keepSlug;
+    config.workspaceDir = keepWs;
+  }
 }
 
 export function resolveRequisitosPath(input?: string): string {

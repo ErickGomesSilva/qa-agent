@@ -4,10 +4,10 @@ export function projectSlugFromPath(requisitosPath: string): string {
   const parts = normalized.split("/").filter(Boolean);
   const reqIdx = parts.findIndex((p) => /^requisitos$/i.test(p));
   const name = reqIdx > 0 ? parts[reqIdx - 1]! : parts[parts.length - 1] ?? "projeto";
-  return slugify(name);
+  return slugifyProject(name);
 }
 
-function slugify(raw: string): string {
+export function slugifyProject(raw: string): string {
   const s = raw
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")

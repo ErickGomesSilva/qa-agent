@@ -389,7 +389,7 @@ function boardLines(state: State, width: number): string[] {
   lines.push("");
   const regen = state.regenerate ? t("app.regenYes") : t("common.no");
   lines.push(
-    `${ink("▸", theme.accent)} ${ink(t("app.specs", { n: listSpecFiles().length, regen }), theme.fg)} ${ink("(R)", theme.muted)}`,
+    `${ink("▸", theme.accent)} ${ink(t("app.specs", { n: listSpecFiles().length, regen, slug: config.projectSlug }), theme.fg)} ${ink("(R)", theme.muted)}`,
   );
   lines.push(
     `${ink("·", theme.muted)} ${ink(

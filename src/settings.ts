@@ -30,6 +30,8 @@ export type AppSettings = {
   webhookProvider?: WebhookProvider;
   /** @deprecated */
   discordEnabled?: boolean;
+  /** Slug em data/projects/<slug>/ (scripts, massa, relatórios). */
+  project?: string;
 };
 
 function settingsPath(): string {
@@ -93,6 +95,7 @@ export function loadSettings(): AppSettings {
         ? raw.webhookProvider
         : undefined,
     discordEnabled: typeof raw.discordEnabled === "boolean" ? raw.discordEnabled : undefined,
+    project: typeof raw.project === "string" ? raw.project : undefined,
   };
 }
 
