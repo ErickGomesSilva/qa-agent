@@ -40,7 +40,7 @@ If you develop from the one-line install path (`%LOCALAPPDATA%\qa-agent` or `~/.
 ## How we work
 
 - Prefer a small pull request with one intent (bugfix, docs, feature).
-- Run `npm run typecheck` before opening a PR.
+- Run `npm run typecheck` and `npm test` before opening a PR.
 - Do not add credentials, customer requirements, or run artifacts from `data/`.
 - Do not weaken skip/massa honesty: if a CA cannot be asserted in the UI, keep it `@rascunho`, `@massa`, or `@sem-ui` with a reason.
 - TUI strings go through `src/i18n.ts` (pt-BR **and** en-US).
@@ -51,6 +51,7 @@ If you develop from the one-line install path (`%LOCALAPPDATA%\qa-agent` or `~/.
 |---|---|
 | `npm start` | TUI / CLI |
 | `npm run typecheck` | TypeScript |
+| `npm test` | Join unitário (`ROTEIRO`) |
 | `npm run audit` | Coverage audit |
 | `npm run tour` | Headed browser tour |
 | `npm run generate-massa` | Fill `dados.json` |

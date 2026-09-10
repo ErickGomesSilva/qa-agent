@@ -59,11 +59,15 @@ export function nodeVersionOk() {
 }
 
 export function run(cmd, args, opts = {}) {
-  const res = spawnSync(cmd, args, {
+  const win = process.platform === "win32";
+  const { shell: shellOpt, ...rest } = opts;
+  const useShell = shellOpt ?? win;
+  const file = useShell && /\s/.test(cmd) ? `"${cmd}"` : cmd;
+  const res = spawnSync(file, args, {
     cwd: ROOT,
     stdio: "inherit",
-    shell: process.platform === "win32",
-    ...opts,
+    shell: useShell,
+    ...rest,
   });
   if (res.error) throw res.error;
   return res.status ?? 1;
@@ -71,7 +75,7 @@ export function run(cmd, args, opts = {}) {
 
 export function runNodeScript(relativePath, extraArgs = []) {
   const tsx = join(ROOT, "node_modules", "tsx", "dist", "cli.mjs");
-  return run(process.execPath, [tsx, join(ROOT, relativePath), ...extraArgs]);
+  return run(process.execPath, [tsx, join(ROOT, relativePath), ...extraArgs], { shell: false });
 }
 
 function unixWrapperContent(entryRel) {
@@ -226,7 +230,7 @@ export function createWindowsStartMenuShortcuts() {
   if (process.platform !== "win32") return;
   const psPath = join(ROOT, "scripts", "windows-start-menu.ps1");
   if (!existsSync(psPath)) return;
-  run("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", psPath]);
+  run("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", psPath], { shell: false });
 }
 
 export function removeWindowsStartMenuShortcuts() {

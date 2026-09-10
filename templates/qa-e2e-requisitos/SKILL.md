@@ -7,7 +7,7 @@ Workspace: `data/workspace`. Scripts permanentes: `scripts/`. Requisitos copiado
 ## Papel
 
 1. Ler TODOS os `.md`/`.txt` em `requisitos/`. Extrair cada User Story, cada CA (Dado/Quando/Entao) e cada RN.
-2. Construir Playwright cobrindo **todos** os CAs. Nao amostrar. Nao pular CA porque "e parecido".
+2. Construir Playwright cobrindo **todos** os CAs. Fonte primaria: `scripts/falhas/ROTEIRO.json` (cruzamento requisitos ∩ mapa por perfil ∩ F5). Requisitos = texto do Entao/RN. Nao inventar tela que o mapa nao tem. Nao amostrar.
 3. Gravar `scripts/cobertura.json` **v2** com a lista completa.
 
 ```json
@@ -50,8 +50,9 @@ Titulo: `US_XXX CAyy — variante:negativo — <resumo> @executavel @variante` (
 
 - CA de API: `request` + `helpers/api.ts` (`apiJson`). Tags `@executavel @api`. Nao use `test.skip`.
 - CA sem UI e sem API: `@sem-ui` + skip com motivo `sem-ui`.
-- Perfil no CA: `loginAs(page, label)` alinhado ao F5; senao acesso 1.
-- Sequencia entre US (criar→editar→excluir, sessao, voltar) descrita nos requisitos: `scripts/tests/jornadas.spec.ts`, titulo `JORNADA US_A→US_B — <resumo> @executavel @jornada`. Nao invente encadeamento.
+- Perfil no CA / linha do roteiro: `loginAs(page, label)` com o label F5. Sem credencial desse perfil: `@massa`, nunca `test.skip(true)` generico.
+- Sequencia entre US so se o roteiro/requisitos descreverem: `scripts/tests/jornadas.spec.ts`, titulo `JORNADA US_A→US_B — <resumo> @executavel @jornada`. Nao invente encadeamento.
+- Consulta: assertar lista, empty da lista, ou HTTP 2xx/401/403 conforme `esperado` no roteiro. **Heading nao prova consulta.** Menu visivel + API 403 com CA de consulta autorizada = falha de produto, nao verde.
 
 ## Tags
 
@@ -82,7 +83,7 @@ Regra: **nao marque `@executavel` se o Entao nao for assertado.** O auditor reba
 
 ## Exploracao de logica (alem do CA)
 
-Playwright cobre o Entao e o que o crawler achar (console.error, pageerror, HTTP 5xx). Nao cobre regra invisivel na UI.
+Playwright cobre o Entao e o que o crawler por perfil achar (console.error, pageerror, HTTP 5xx e 401/403). Heading nao cobre consulta.
 
 - Asserts de RN **visiveis**.
 - Nao inventar regra ausente no requisito.
@@ -99,7 +100,7 @@ Classificar UMA classe: TESTE | PRODUTO | MASSA | AMBIENTE | INCONCLUSIVO.
 ## Artefatos
 
 - `scripts/cobertura.json` na geracao (v2).
-- `scripts/falhas/AUDITORIA.json`
+- `scripts/falhas/PROBLEMAS.md` / `PROBLEMAS.json` (bloqueios, falhas, produto, avisos — F9 visao 5)
 - `scripts/falhas/COBERTURA-RESUMO.md`
 - `scripts/falhas/MATRIZ.md` / `MATRIZ.json` (F9 Consulta)
 - `scripts/falhas/QUARENTENA.md` (F9)
@@ -107,3 +108,6 @@ Classificar UMA classe: TESTE | PRODUTO | MASSA | AMBIENTE | INCONCLUSIVO.
 - `scripts/falhas/TRIAGEM.json`
 - `scripts/falhas/LOGICA.md`
 - `scripts/falhas/JORNADA.md`
+- `scripts/falhas/MAPA-PERFIL.json` (crawl por perfil F5, HTTP 4xx)
+- `scripts/falhas/ROTEIRO.json` (join; cada `test()` sai daqui)
+- `scripts/escopo.json` opcional (`geral` | `focado`)

@@ -12,13 +12,22 @@ export type CaRef = {
 };
 
 /** Lista caminhos de artefatos de exploracao para o agente. */
-export function exploreArtifacts(): { exploracao?: string; mapaUi?: string } {
+export function exploreArtifacts(): {
+  exploracao?: string;
+  mapaUi?: string;
+  mapaPerfil?: string;
+  roteiro?: string;
+} {
   const falhas = join(requisitosDestDir(), "..", "scripts", "falhas");
   const exploracao = join(falhas, "EXPLORACAO.json");
   const mapaUi = join(falhas, "MAPA-UI.json");
+  const mapaPerfil = join(falhas, "MAPA-PERFIL.json");
+  const roteiro = join(falhas, "ROTEIRO.json");
   return {
     exploracao: existsSync(exploracao) ? exploracao.replace(/\\/g, "/") : undefined,
     mapaUi: existsSync(mapaUi) ? mapaUi.replace(/\\/g, "/") : undefined,
+    mapaPerfil: existsSync(mapaPerfil) ? mapaPerfil.replace(/\\/g, "/") : undefined,
+    roteiro: existsSync(roteiro) ? roteiro.replace(/\\/g, "/") : undefined,
   };
 }
 
@@ -48,6 +57,8 @@ ${list || "(nenhum)"}
 
 - EXPLORACAO.json: ${arts.exploracao ?? "ausente"}
 - MAPA-UI.json: ${arts.mapaUi ?? "ausente"}
+- MAPA-PERFIL.json: ${arts.mapaPerfil ?? "ausente"}
+- ROTEIRO.json: ${arts.roteiro ?? "ausente"}
 
 ## Obrigatorio
 

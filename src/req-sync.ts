@@ -9,6 +9,7 @@ export type CaRecord = {
   arquivo: string;
   hash: string;
   entao: string;
+  bloco: string;
 };
 
 export type SyncDiffEntry = {
@@ -83,7 +84,7 @@ function extractCasFromMarkdown(filePath: string): CaRecord[] {
     if (!us || !ca) continue;
     const entao = block.match(/\*\*Ent[aã]o\*\*[:\s]*([\s\S]*?)(?=\n\*\*|\n###|$)/i)?.[1]?.trim() ?? "";
     const hash = createHash("sha256").update(`${us}|${ca}|${entao}`).digest("hex").slice(0, 16);
-    out.push({ us, ca, arquivo, hash, entao });
+    out.push({ us, ca, arquivo, hash, entao, bloco: block.slice(0, 1200) });
   }
   if (out.length === 0) {
     const usMatches = [...text.matchAll(US_RE)].map((m) => m[1]);
@@ -91,7 +92,7 @@ function extractCasFromMarkdown(filePath: string): CaRecord[] {
     if (usMatches.length === 1 && caMatches.length) {
       for (const ca of caMatches) {
         const hash = createHash("sha256").update(`${usMatches[0]}|${ca}|${text.slice(0, 500)}`).digest("hex").slice(0, 16);
-        out.push({ us: usMatches[0]!, ca: ca!, arquivo, hash, entao: "" });
+        out.push({ us: usMatches[0]!, ca: ca!, arquivo, hash, entao: "", bloco: text.slice(0, 1200) });
       }
     }
   }

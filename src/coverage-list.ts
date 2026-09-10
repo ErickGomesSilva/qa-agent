@@ -4,7 +4,7 @@ import type { CoverageReportDetail } from "./coverage-report.ts";
 import type { K6Outcome } from "./k6-types.ts";
 import { scriptsDir } from "./workspace.ts";
 
-export type ReportKind = "cobertura" | "k6" | "matriz" | "quarentena" | "jornada";
+export type ReportKind = "cobertura" | "k6" | "matriz" | "quarentena" | "jornada" | "problemas";
 
 export type ReportEntry = {
   kind: ReportKind;
@@ -78,6 +78,7 @@ function readSpecial(dir: string, fileName: string): ReportEntry | undefined {
   if (fileName === "MATRIZ.md") return readNamedMd(dir, fileName, "matriz", "matriz");
   if (fileName === "QUARENTENA.md") return readNamedMd(dir, fileName, "quarentena", "quarentena");
   if (fileName === "JORNADA.md") return readNamedMd(dir, fileName, "jornada", "jornada");
+  if (fileName === "PROBLEMAS.md") return readNamedMd(dir, fileName, "problemas", "problemas");
   return undefined;
 }
 
@@ -142,6 +143,7 @@ export function formatReportKind(entry: ReportEntry): string {
   if (entry.kind === "matriz") return "matriz";
   if (entry.kind === "quarentena") return "quarentena";
   if (entry.kind === "jornada") return "jornada";
+  if (entry.kind === "problemas") return "problemas";
   return "cobertura";
 }
 

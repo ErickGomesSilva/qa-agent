@@ -7,7 +7,7 @@ import { scriptsDir } from "./workspace.ts";
 
 export type ExploreIssue = {
   url: string;
-  kind: "console" | "pageerror" | "http5xx";
+  kind: "console" | "pageerror" | "http5xx" | "http4xx";
   message: string;
 };
 

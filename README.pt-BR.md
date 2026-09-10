@@ -12,11 +12,12 @@ CLI local (TUI + modo texto) que transforma US/CA em specs Playwright, explora a
 ## O que faz
 
 1. **Lê** requisitos em markdown (US / CA).
-2. **Gera** specs Playwright com tags `@executavel`, `@rascunho`, `@massa` ou `@sem-ui`.
-3. **Explora** a UI (crawler + **jornada** opcional com cliques reais).
-4. **Preenche** massa em runtime via `dados.json` / `dados.md`.
-5. **Roda** Playwright (`--max-failures=1`). Na falha, **tria** com LLM: TESTE / PRODUTO / MASSA / AMBIENTE / INCONCLUSIVO.
-6. **TESTE** com correção de locator pode retomar; **PRODUTO** pode seguir a suíte e notificar Discord / Slack / Teams.
+2. **Mapeia** a UI com Playwright **por cada login da F5** (menu, controles, HTTP 401/403) e cruza com os requisitos → `ROTEIRO.json`.
+3. **Gera** specs Playwright a partir do roteiro (`loginAs` por perfil; heading **não** prova consulta), com tags `@executavel`, `@rascunho`, `@massa` ou `@sem-ui`.
+4. **Explora** o restante (agente de RN + **jornada** opcional com cliques reais). O crawl de um único login foi substituído pelo mapa por perfil.
+5. **Preenche** massa em runtime via `dados.json` / `dados.md`.
+6. **Roda** Playwright (`--max-failures=1`). Na falha, **tria** com LLM: TESTE / PRODUTO / MASSA / AMBIENTE / INCONCLUSIVO.
+7. **TESTE** com correção de locator pode retomar; **PRODUTO** pode seguir a suíte e notificar Discord / Slack / Teams.
 
 A chave da API fica na sua máquina. O runtime do agente é **local** (alcança URL interna).
 
@@ -86,7 +87,7 @@ Sem instalador: `npm install`, `npx playwright install chromium`, `npm start`.
 | F6 | Webhook | Opcional, só PRODUTO |
 | F7 | Opções | **Rodar tudo**, k6, massa, jornada, headed, grep, idioma, seguir após PRODUTO, retestar quarentena |
 | F8 | Missão | Inicia rodada + telemetria ao vivo |
-| F9 | Consulta | **1** relatórios · **2** matriz · **3** quarentena · **4** jornadas |
+| F9 | Consulta | **1** relatórios · **2** matriz · **3** quarentena · **4** jornadas · **5** problemas |
 
 Enter grava a aba. Na F8, Enter inicia a rodada. Sem TTY: `qaagent --plain`. Reconfigurar: `qaagent --plain --reconfigure`.
 
@@ -125,6 +126,31 @@ senha: troque-me
 ```
 
 Os testes não leem esse arquivo diretamente; o orquestrador injeta variáveis `E2E_*` no Playwright.
+
+## Fases da rodada (mapa → roteiro → specs)
+
+Na missão completa a ordem é:
+
+1. Sincronizar `requisitos/`
+2. **Mapa por perfil** (Playwright, sem LLM) → `scripts/falhas/MAPA-PERFIL.json` — um crawl por conta da F5; registra menu, controles visíveis/ausentes e HTTP **401/403** same-origin (não só 5xx)
+3. **Join** requisitos ∩ mapa ∩ labels F5 → `scripts/falhas/ROTEIRO.json` (`us`, `ca`, `perfil`, `onde`, `fazer`, `esperado`, `specHint`)
+4. **Generate** lê roteiro + mapa + requisitos (`loginAs` no perfil da linha; consulta ≠ heading)
+5. Auditoria, massa, Playwright, triagem (como antes)
+6. Relatórios: `COBERTURA-RESUMO-*.md` + **`PROBLEMAS.md`** — bloqueios (massa/perfil), falhas Playwright com erro, produto, HTTP 4xx do mapa, CAs sem spec, stubs. F9 → **5 Problemas**.
+
+Run **geral** e **focado** usam o mesmo motor. Recorte em `data/workspace/scripts/escopo.json` (exemplo em `escopo.example.json`) ou env:
+
+```json
+{ "modo": "focado", "labels": ["operador"], "paths": ["/app/documentos"] }
+```
+
+- `QA_ESCOPO_MODO=geral|focado`
+- `QA_ESCOPO_LABELS=operador,visitante`
+- `QA_ESCOPO_PATHS=/app/docs,/app/fila`
+
+Se o F5 tiver **um** acesso e as US citarem **vários** papéis, a rodada grava aviso de cobertura de permissão incompleta — não trata variante de perfil como coberta.
+
+A jornada headed (F7) continua opcional; **não** substitui o mapa por perfil.
 
 ## API HTTP (opcional)
 

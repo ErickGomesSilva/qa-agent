@@ -3,6 +3,11 @@ import { join } from "node:path";
 import { auditSummaryFromFindings } from "./coverage-audit.ts";
 import { loadCoverageFile } from "./coverage-migrate.ts";
 import type { CoverageAuditResult, CoverageNivel, CoverageSummary } from "./coverage-types.ts";
+import {
+  formatImpedimentsTerminal,
+  writeImpedimentsReport,
+  type ImpedimentsReport,
+} from "./impediments.ts";
 import { manifestSummary, loadMassaManifest } from "./massa/manifest.ts";
 import {
   groupPlaywrightRows,
@@ -35,6 +40,7 @@ export type CoverageReportDetail = {
   triage?: { classe: string; us?: string; ca?: string; resumo: string };
   stuckCases?: StuckCase[];
   productFindings?: ProductFinding[];
+  problemas?: ImpedimentsReport;
 };
 
 export type CoverageReportInput = {
@@ -147,8 +153,10 @@ function mdList(rows: PlaywrightTestRow[], max = 200): string[] {
     lines.push(`- ${id}${short}`);
     if (r.reason) lines.push(`  - *Motivo:* ${r.reason}`);
     if (r.error) {
-      const err = r.error.split("\n")[0]?.slice(0, 240) ?? "";
-      lines.push(`  - *Erro:* \`${err}\``);
+      const errLines = r.error.split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 4);
+      for (const err of errLines) {
+        lines.push(`  - *Erro:* \`${err.slice(0, 300)}\``);
+      }
     }
   }
   if (rows.length > max) lines.push(`- … e mais **${rows.length - max}**`);
@@ -195,6 +203,31 @@ function mdReport(detail: CoverageReportDetail, pw?: PlaywrightOutcome): string 
     "",
   ];
 
+  if (detail.problemas && detail.problemas.totais.total > 0) {
+    const p = detail.problemas.totais;
+    lines.push(
+      "## Problemas e impedimentos",
+      "",
+      `Detalhe completo: \`scripts/falhas/PROBLEMAS.md\` (F9 → **5**).`,
+      "",
+      `| Total | Bloqueios | Produto | Falhas | Avisos |`,
+      `|-------|-----------|---------|--------|--------|`,
+      `| ${p.total} | ${p.bloqueio} | ${p.produto} | ${p.falha} | ${p.aviso} |`,
+      "",
+    );
+    for (const item of detail.problemas.itens.slice(0, 25)) {
+      const id = [item.us, item.ca].filter(Boolean).join(" ");
+      lines.push(`- **[${item.severity}]** ${id ? `${id} — ` : ""}${item.titulo}`);
+      lines.push(`  - ${item.detalhe.slice(0, 280)}`);
+      lines.push(`  - *Impacto:* ${item.impacto}`);
+      lines.push(`  - *Próximo passo:* ${item.proximoPasso}`);
+    }
+    if (detail.problemas.itens.length > 25) {
+      lines.push(`- … e mais **${detail.problemas.itens.length - 25}** em PROBLEMAS.md`);
+    }
+    lines.push("");
+  }
+
   if (detail.playwright) {
     const { passed, failed, skipped } = detail.playwright;
     lines.push(
@@ -208,9 +241,6 @@ function mdReport(detail: CoverageReportDetail, pw?: PlaywrightOutcome): string 
       "",
     );
 
-    if (passed.length) {
-      lines.push(`## Passaram (${passed.length})`, "", ...mdList(passed), "");
-    }
     if (failed.length) {
       lines.push(`## Falharam (${failed.length})`, "", ...mdList(failed), "");
     }
@@ -223,6 +253,9 @@ function mdReport(detail: CoverageReportDetail, pw?: PlaywrightOutcome): string 
         ...mdList(skipped),
         "",
       );
+    }
+    if (passed.length) {
+      lines.push(`## Passaram (${passed.length})`, "", ...mdList(passed, 80), "");
     }
   } else if (pw) {
     lines.push(
@@ -327,21 +360,27 @@ export function formatCoverageReportTerminal(out: CoverageReportOutput): string[
     `  Requisitos: ${s.total} CAs | reais: ${s.real} | rascunho: ${s.rascunho} | massa: ${s.skipMassa} | sem-ui: ${s.semUi}`,
   ];
 
+  if (d.problemas && d.problemas.totais.total > 0) {
+    lines.push("");
+    lines.push(...formatImpedimentsTerminal(d.problemas, 12));
+    lines.push("");
+  }
+
   if (d.playwright) {
     const { passed, failed, skipped } = d.playwright;
     lines.push(`  Playwright: ${passed.length} passou | ${failed.length} falhou | ${skipped.length} pulou`, "");
 
-    if (passed.length) {
-      lines.push(`  PASSARAM (${passed.length})`, ...terminalLines(passed, TERMINAL_MAX));
-      if (passed.length > TERMINAL_MAX) lines.push(`  … +${passed.length - TERMINAL_MAX} (ver MD)`);
-      lines.push("");
-    }
     if (failed.length) {
       lines.push(`  FALHARAM (${failed.length})`, ...terminalLines(failed, TERMINAL_MAX), "");
     }
     if (skipped.length) {
       lines.push(`  PULADOS (${skipped.length})`, ...terminalLines(skipped, TERMINAL_MAX));
       if (skipped.length > TERMINAL_MAX) lines.push(`  … +${skipped.length - TERMINAL_MAX} (ver MD)`);
+      lines.push("");
+    }
+    if (passed.length) {
+      lines.push(`  PASSARAM (${passed.length})`, ...terminalLines(passed, TERMINAL_MAX));
+      if (passed.length > TERMINAL_MAX) lines.push(`  … +${passed.length - TERMINAL_MAX} (ver MD)`);
       lines.push("");
     }
   }
@@ -377,7 +416,8 @@ export function formatCoverageReportTerminal(out: CoverageReportOutput): string[
     lines.push(`  TRIAGEM: ${d.triage.classe} — ${d.triage.resumo.slice(0, 100)}`, "");
   }
 
-  lines.push(`  Relatório: ${out.mdPath}`, "══════════════════════════════════════════════════════════", "");
+    lines.push(`  Relatório: ${out.mdPath}  |  Problemas: scripts/falhas/PROBLEMAS.md`);
+    lines.push("══════════════════════════════════════════════════════════", "");
   return lines;
 }
 
@@ -396,6 +436,14 @@ export function emitCoverageReportTerminal(
 
 export function writeCoverageReport(input: CoverageReportInput): CoverageReportOutput {
   const detail = buildDetail(input);
+  detail.problemas = writeImpedimentsReport({
+    requisitosPath: input.requisitosPath,
+    audit: input.audit,
+    playwright: detail.playwright,
+    stuckCases: input.stuckCases,
+    productFindings: input.productFindings,
+    triage: input.triage,
+  }).report;
   const base = coverageReportBasename(detail.projectSlug);
   const jsonPath = join(scriptsDir(), "falhas", `${base}.json`);
   const mdPath = join(scriptsDir(), "falhas", `${base}.md`);

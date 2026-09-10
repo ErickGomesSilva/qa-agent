@@ -14,7 +14,10 @@ import { loadMassaManifest } from "./massa/manifest.ts";
 import { t } from "./i18n.ts";
 import { runGenerateAgent } from "./generate-agent.ts";
 import { runLogicAgent } from "./logic-agent.ts";
+import { filterAccessesByEscopo, loadRunEscopo } from "./escopo.ts";
 import { runLogicExplore } from "./logic-explore.ts";
+import { runProfileMap } from "./profile-map.ts";
+import { writeRoteiro } from "./roteiro.ts";
 import { runUserTour } from "./user-tour.ts";
 import { runPlaywright } from "./playwright-runner.ts";
 import { runK6, shouldRunK6 } from "./k6-runner.ts";
@@ -463,16 +466,38 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
     return;
   }
 
+  await ensureChromium(log);
+
+  run.status = "exploring_logic";
+  saveRun(run);
+  log("▸ fase: Mapa por perfil — Playwright (menu, controles, HTTP 4xx) antes de gerar specs");
+  const escopo = loadRunEscopo();
+  const mapAccesses = filterAccessesByEscopo(creds.accesses, escopo);
+  const { map, explore } = await runProfileMap({
+    baseUrl: creds.baseUrl,
+    accesses: mapAccesses,
+    escopo,
+    onLog: log,
+  });
+  const f5Labels = creds.accesses.map((a, i) => a.label?.trim() || `acesso-${i + 1}`);
+  writeRoteiro({
+    map,
+    f5Labels,
+    f5ProfileCount: creds.accessCount,
+    escopo,
+    onLog: log,
+  });
+
   const specsBefore = listSpecFiles();
   if (specsBefore.length === 0 || run.regenerate) {
     run.status = "generating_scripts";
     saveRun(run);
     log(
       specsBefore.length === 0
-        ? "sem scripts — disparando agente para escrever Playwright a partir da documentacao"
+        ? "sem scripts — disparando agente para escrever Playwright a partir do roteiro + requisitos"
         : "regenerate=true — agente vai reescrever os scripts",
     );
-    log("▸ fase: Gerando specs — agente IA escrevendo Playwright");
+    log("▸ fase: Gerando specs — agente IA (ROTEIRO.json + MAPA-PERFIL + requisitos)");
     await runGenerateAgent({
       requisitosPath: run.requisitosPath,
       baseUrl: run.baseUrl,
@@ -485,18 +510,6 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
     log(t("notice.scriptsFound", { n: specsBefore.length }));
   }
 
-  await ensureChromium(log);
-
-  run.status = "exploring_logic";
-  saveRun(run);
-  log("▸ fase: Crawler UI — mapeando rotas da aplicacao");
-  const explore = await runLogicExplore({
-    baseUrl: creds.baseUrl,
-    authKind: credPrimary(creds).authKind,
-    login: credPrimary(creds).login,
-    senha: credPrimary(creds).senha,
-    onLog: log,
-  });
   await runLogicAgent({
     baseUrl: creds.baseUrl,
     explore,

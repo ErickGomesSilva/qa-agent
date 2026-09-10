@@ -1,6 +1,7 @@
-import { basename, relative } from "node:path";
+import { existsSync } from "node:fs";
+import { basename, join, relative } from "node:path";
 import type { AuthKind } from "./types.ts";
-import { listRequisitoFiles, listSpecFiles, requisitosDestDir } from "./workspace.ts";
+import { listRequisitoFiles, listSpecFiles, requisitosDestDir, scriptsDir } from "./workspace.ts";
 
 export function buildGeneratePrompt(opts: {
   requisitosPath: string;
@@ -14,6 +15,11 @@ export function buildGeneratePrompt(opts: {
     ? files.map((f) => `- requisitos/${f}`).join("\n")
     : "(nenhum .md/.txt copiado — verifique a pasta informada)";
   const existing = listSpecFiles().map((f) => basename(f));
+  const falhas = join(scriptsDir(), "falhas");
+  const roteiro = join(falhas, "ROTEIRO.json");
+  const mapa = join(falhas, "MAPA-PERFIL.json");
+  const roteiroNote = existsSync(roteiro) ? "presente" : "AUSENTE";
+  const mapaNote = existsSync(mapa) ? "presente" : "AUSENTE";
 
   return `Siga a skill de sistema (ja injetada). Tarefa: **construir TODOS os casos de teste** da documentacao em Playwright.
 
@@ -21,7 +27,9 @@ cwd: data/workspace da instalacao QA Agent.
 
 ## Pastas
 
-- Requisitos: \`requisitos/\` (origem: ${opts.requisitosPath.replace(/\\/g, "/")})
+- Requisitos: \`requisitos/\` (origem: ${opts.requisitosPath.replace(/\\/g, "/")}) — texto do Entao/RN, nao invente tela
+- Roteiro: \`scripts/falhas/ROTEIRO.json\` (${roteiroNote}) — **fonte primaria de cada test()**
+- Mapa: \`scripts/falhas/MAPA-PERFIL.json\` (${mapaNote}) — o que cada perfil F5 realmente ve e o HTTP da tela
 - Scripts: \`scripts/tests/\`
 - Helper: \`scripts/helpers/env.ts\` → \`e2eEnv()\`
 - Autenticacao: **${opts.authKind === "cpf" ? "CPF + senha" : "e-mail + senha"}** via e2eEnv(). Nunca hardcode.
@@ -35,18 +43,19 @@ Specs ja existentes: ${existing.length ? existing.join(", ") : "(nenhum)"}
 
 ## Obrigatorio
 
-1. Inventariar cada US/CA/RN. Nao amostrar.
-2. Arquivo \`US_XXX.spec.ts\`: fluxo feliz + variantes (negativo/permissao/vazio/limite) **somente se o texto do CA/RN permitir**. Titulo da variante com \`variante:negativo\` (etc.) e tags \`@executavel @variante\`.
-3. Tag **@executavel** somente se assertar o Entao. Senao **@rascunho**.
-4. Sem UI e sem API: \`@sem-ui\` + skip \`sem-ui\`.
-5. CA de API: \`helpers/api.ts\` + \`@executavel @api\`. Nao skip.
-6. Perfil citado no CA: \`loginAs(page, label)\` alinhado ao F5.
-7. Encadeamento entre US: \`scripts/tests/jornadas.spec.ts\` com \`@executavel @jornada\`.
-8. CAs de massa/perfil sem dado: skip + @massa.
-9. RNs visiveis: \`logica-rn.spec.ts\` ou spec da US.
-10. Gravar \`scripts/cobertura.json\` v2 com TODOS os CAs.
-11. Login: \`helpers/auth.ts\` + \`ensureAppReady(page)\` (ou \`loginAs\` no perfil).
-12. Nao rode a suíte. Nao Discord. Nao PENDENTE.md.
+1. Leia \`ROTEIRO.json\` primeiro. Um \`test()\` por linha. Requisitos so para o texto do Entao/RN.
+2. Arquivo \`US_XXX.spec.ts\`. Titulo com US/CA. Variantes (negativo/permissao/vazio/limite) **somente se o CA/RN e o roteiro permitirem**.
+3. Tag **@executavel** somente se assertar o Entao observavel. Senao **@rascunho**.
+4. \`esperado: sem-ui\` → \`@sem-ui\` + skip \`sem-ui\`. Sem inventar tela.
+5. \`esperado: massa\` → \`@massa\` + skip com o perfil faltante. **Proibido** \`test.skip(true)\` "precisa de outro usuario".
+6. Linha com \`perfil\`: \`loginAs(page, "<label>")\` obrigatorio (mesmo label do F5 / roteiro).
+7. \`esperado: http-ok\` ou consulta: lista, empty da lista, ou HTTP 2xx. **Heading da pagina nao prova consulta.**
+8. \`esperado: http-recusa\`: 401/403 ou recusa visivel. Menu visivel nao e sucesso.
+9. \`esperado: ausente\`: controle ausente; nao pule a consulta da mesma tela se o roteiro tambem tiver linha de consulta.
+10. CA de API: \`helpers/api.ts\` + \`@executavel @api\`.
+11. Encadeamento so se o roteiro/requisitos descreverem sequencia: \`jornadas.spec.ts\` \`@executavel @jornada\`.
+12. Gravar \`scripts/cobertura.json\` v2 com TODOS os CAs.
+13. Nao rode a suíte. Nao Discord. Nao PENDENTE.md.
 
 ## Regenerar
 

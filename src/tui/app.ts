@@ -45,6 +45,7 @@ import {
 import { detectWebhookProvider, webhookProviderLabel, type WebhookProvider } from "../webhook.ts";
 import { listSpecFiles } from "../workspace.ts";
 import { formatReportKind, formatReportStats, listAllReports, type ReportEntry } from "../coverage-list.ts";
+import { loadImpedimentsReport } from "../impediments.ts";
 import { loadQuarantine } from "../quarantine.ts";
 import { lastLabel, listJourneyFiles, loadTraceMatrix } from "../trace-matrix.ts";
 import { displayReportInTerminal, readReportLines } from "../open-report.ts";
@@ -158,7 +159,7 @@ type State = {
   flashErr: boolean;
   reports: ReportEntry[];
   reportIndex: number;
-  consultView: "relatorios" | "matriz" | "quarentena" | "jornadas";
+  consultView: "relatorios" | "problemas" | "matriz" | "quarentena" | "jornadas";
   consultIndex: number;
   reportView?: { path: string; lines: string[]; scroll: number };
   runStartedAt?: number;
@@ -437,12 +438,19 @@ function boardLines(state: State, width: number): string[] {
   return lines;
 }
 
-const CONSULT_VIEWS = ["relatorios", "matriz", "quarentena", "jornadas"] as const;
+const CONSULT_VIEWS = ["relatorios", "matriz", "quarentena", "jornadas", "problemas"] as const;
 type ConsultView = (typeof CONSULT_VIEWS)[number];
 
 function consultMdPath(view: ConsultView, reports: ReportEntry[]): string | undefined {
   if (view === "relatorios") return reports[0]?.mdPath;
-  const kind = view === "matriz" ? "matriz" : view === "quarentena" ? "quarentena" : "jornada";
+  const kind =
+    view === "matriz"
+      ? "matriz"
+      : view === "quarentena"
+        ? "quarentena"
+        : view === "jornadas"
+          ? "jornada"
+          : "problemas";
   return reports.find((r) => r.kind === kind)?.mdPath;
 }
 
@@ -482,6 +490,7 @@ function renderResumosTab(state: State, width: number, rows: number): string[] {
         chip(`2 ${t("consult.matriz")}`, state.consultView === "matriz"),
         chip(`3 ${t("consult.quarentena")}`, state.consultView === "quarentena"),
         chip(`4 ${t("consult.jornadas")}`, state.consultView === "jornadas"),
+        chip(`5 ${t("consult.problemas")}`, state.consultView === "problemas"),
       ],
       true,
       t("help.hint16"),
@@ -489,6 +498,50 @@ function renderResumosTab(state: State, width: number, rows: number): string[] {
   );
   lines.push(ink(`  ${t("consult.openMd")}`, theme.muted));
   lines.push("");
+
+  if (state.consultView === "problemas") {
+    const p = loadImpedimentsReport();
+    if (!p || !p.itens.length) {
+      lines.push(ink(`  ${t("consult.problemasEmpty")}`, theme.warn));
+    } else {
+      lines.push(
+        ink(
+          `  ${t("consult.problemasCounts", {
+            total: p.totais.total,
+            bloqueio: p.totais.bloqueio,
+            produto: p.totais.produto,
+            falha: p.totais.falha,
+            aviso: p.totais.aviso,
+          })}`,
+          theme.accentHi,
+        ),
+      );
+      lines.push("");
+      const maxRows = Math.max(4, rows - 14);
+      const start = Math.max(0, state.consultIndex - Math.floor(maxRows / 2));
+      const slice = p.itens.slice(start, start + maxRows);
+      slice.forEach((item, i) => {
+        const idx = start + i;
+        const selected = idx === state.consultIndex;
+        const mark = selected ? ink("▸", theme.accentHi) : ink("·", theme.muted);
+        const id = [item.us, item.ca].filter(Boolean).join(" ") || item.titulo.slice(0, 28);
+        const tone =
+          item.severity === "bloqueio" || item.severity === "falha" || item.severity === "produto"
+            ? theme.warn
+            : theme.muted;
+        lines.push(
+          `  ${mark} ${ink(`[${item.severity}]`, tone)} ${ink(id, selected ? theme.accentHi : theme.fg)} ${ink(item.categoria, theme.info)}`,
+        );
+        if (selected) {
+          for (const w of wrapVisible(item.detalhe, inner - 6).slice(0, 3)) {
+            lines.push(ink(`      ${w}`, theme.muted));
+          }
+          lines.push(ink(`      → ${item.proximoPasso.slice(0, inner - 8)}`, theme.info));
+        }
+      });
+    }
+    return frame(lines, width, rows, t("tab.resumos"), "heavy");
+  }
 
   if (state.consultView === "matriz") {
     const m = loadTraceMatrix();
@@ -1477,7 +1530,7 @@ export async function runTui(): Promise<void> {
             if (
               key.type === "left" ||
               key.type === "right" ||
-              (key.type === "char" && ["1", "2", "3", "4"].includes(key.ch))
+              (key.type === "char" && ["1", "2", "3", "4", "5"].includes(key.ch))
             ) {
               let i = CONSULT_VIEWS.indexOf(state.consultView);
               if (key.type === "char") i = Number(key.ch) - 1;
@@ -1495,6 +1548,9 @@ export async function runTui(): Promise<void> {
                 if (n) state.consultIndex = (state.consultIndex + dir + n) % n;
               } else if (state.consultView === "quarentena") {
                 const n = loadQuarantine().cases.length;
+                if (n) state.consultIndex = (state.consultIndex + dir + n) % n;
+              } else if (state.consultView === "problemas") {
+                const n = loadImpedimentsReport()?.itens.length ?? 0;
                 if (n) state.consultIndex = (state.consultIndex + dir + n) % n;
               } else {
                 const list = state.reports.filter((x) => x.kind === "cobertura" || x.kind === "k6");
