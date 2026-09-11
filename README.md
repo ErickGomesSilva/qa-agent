@@ -90,7 +90,7 @@ Manual dev setup without installer: `npm install`, `npx playwright install chrom
 | F5 | Login | 1–10 accounts, or a `.md` / `.json` file |
 | F6 | Notify | Webhook (optional; confirmed app bugs, not test errors) |
 | F7 | Options | **Run all**, k6, mass, tour, headed, grep, locale, continue after PRODUTO, retest quarantine |
-| F8 | Mission | Start the run + live telemetry |
+| F8 | Mission | Start the run + live telemetry (**R** = regenerate specs **and** force a fresh map/roteiro) |
 | F9 | Consult | **1** reports · **2** matrix · **3** quarantine · **4** journeys · **5** problems |
 
 Enter saves the tab. On F8, Enter starts a run. No TTY: `qaagent --plain`. Reconfigure: `qaagent --plain --reconfigure`.
@@ -125,6 +125,19 @@ qaagent-k6
 qaagent-reports
 qaagent-clean
 ```
+
+## Round pipeline (map → roteiro → specs)
+
+1. Sync `requisitos/`
+2. **Per-profile map** (Playwright, no LLM) → `scripts/falhas/MAPA-PERFIL.json`
+3. Join requirements ∩ map ∩ F5 labels → `scripts/falhas/ROTEIRO.json`
+4. **Generate** reads roteiro + map + requirements (unless specs already exist)
+5. Audit, mass, Playwright, triage
+6. Reports: coverage + **`PROBLEMAS.md`**. On a **fatal** interrupt (Cursor agent error, loop limit, etc.) also writes `scripts/falhas/FALHA-FATAL.md` (+ `.json`) and prints a short “where it stopped” summary in the F8/CLI log.
+
+### Reusing map and roteiro
+
+Both files store an **input fingerprint** (URL, F5, scope, crawl depth; the roteiro also includes CA hashes). Matching fingerprints **reuse** the crawl; requirement-only changes **rebuild the roteiro** from the cached map; **R** regenerate forces map + roteiro + specs. UI-only product changes do not invalidate the cache — press **R**.
 
 ## Multiple projects
 

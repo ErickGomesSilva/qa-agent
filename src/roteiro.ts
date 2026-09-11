@@ -44,6 +44,8 @@ export type RoteiroFile = {
   version: 1;
   at: string;
   escopo: RunEscopo;
+  /** Hash dos inputs (URL/F5/escopo/CAs) — usado para pular recriação. */
+  fingerprint?: string;
   coberturaPermissao: { completa: boolean; aviso?: string };
   linhas: RoteiroLinha[];
 };
@@ -289,6 +291,7 @@ export function writeRoteiro(opts: {
   f5Labels: string[];
   f5ProfileCount: number;
   escopo: RunEscopo;
+  fingerprint?: string;
   onLog: (line: string) => void;
 }): RoteiroFile {
   const casos: JoinCase[] = listRequirementCases(requisitosDestDir()).map((c) => ({
@@ -308,6 +311,7 @@ export function writeRoteiro(opts: {
     version: 1,
     at: new Date().toISOString(),
     escopo: opts.escopo,
+    ...(opts.fingerprint ? { fingerprint: opts.fingerprint } : {}),
     coberturaPermissao: joined.coberturaPermissao,
     linhas: joined.linhas,
   };

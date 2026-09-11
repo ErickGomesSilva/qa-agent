@@ -4,6 +4,7 @@ import { startRun } from "./orchestrator.ts";
 import { applySavedSettings } from "./setup.ts";
 import { t } from "./i18n.ts";
 import { runTui } from "./tui/app.ts";
+import { displayReportInTerminal } from "./open-report.ts";
 import { printBanner, printErr, printKv, printLogLine, printOk, printSection } from "./tui/plain.ts";
 import { runWizard } from "./wizard.ts";
 import { ensureWorkspace, scriptsDir } from "./workspace.ts";
@@ -64,6 +65,13 @@ async function runPlain(): Promise<void> {
     }
     if (run.k6?.reportMdPath) {
       printOk(t("cli.k6Report", { path: run.k6.reportMdPath }));
+    }
+    if (run.error) {
+      printErr(t("cli.error", { msg: run.error }));
+    }
+    if (run.fatalSummaryPath) {
+      printOk(t("cli.fatalSummary", { path: run.fatalSummaryPath }));
+      displayReportInTerminal(run.fatalSummaryPath, (line) => console.log(line));
     }
     const okStatuses = new Set([
       "passed",

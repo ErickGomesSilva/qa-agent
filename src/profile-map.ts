@@ -39,6 +39,8 @@ export type ProfileMapFile = {
   baseUrl: string;
   at: string;
   escopo: RunEscopo;
+  /** Hash URL/F5/escopo/crawl — usado para pular novo crawl. */
+  fingerprint?: string;
   perfis: ProfileMapEntry[];
 };
 
@@ -232,6 +234,7 @@ export async function runProfileMap(opts: {
   baseUrl: string;
   accesses: AccessCredential[];
   escopo: RunEscopo;
+  fingerprint?: string;
   onLog: (line: string) => void;
 }): Promise<{ map: ProfileMapFile; explore: ExploreResult }> {
   const origin = new URL(opts.baseUrl);
@@ -404,6 +407,7 @@ export async function runProfileMap(opts: {
     baseUrl: opts.baseUrl,
     at: new Date().toISOString(),
     escopo: opts.escopo,
+    ...(opts.fingerprint ? { fingerprint: opts.fingerprint } : {}),
     perfis,
   };
 

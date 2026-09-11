@@ -108,7 +108,24 @@ async function runCursorAgentOnce(
   const text = await consumeAgentStream(run, opts);
   const result = await run.wait();
   if (result.status === "error") {
-    throw new Error(`Run do agente falhou: ${run.id}`);
+    const raw = result as unknown as { error?: unknown; message?: unknown };
+    const errObj = raw.error;
+    const fromObj =
+      errObj && typeof errObj === "object"
+        ? String(
+            (errObj as { message?: unknown }).message ??
+              (errObj as { error?: unknown }).error ??
+              "",
+          ).trim()
+        : typeof errObj === "string"
+          ? errObj.trim()
+          : "";
+    const detail = (fromObj || (typeof raw.message === "string" ? raw.message : "")).slice(0, 400);
+    throw new Error(
+      detail
+        ? `Run do agente falhou: ${run.id} — ${detail}`
+        : `Run do agente falhou: ${run.id}`,
+    );
   }
   return { text, id: run.id };
 }

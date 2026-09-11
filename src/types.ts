@@ -147,6 +147,8 @@ export type OrchestratorRun = {
   retestQuarantine?: boolean;
   rounds: number;
   error?: string;
+  /** Resumo automático quando a rodada aborta (fatal / fluxo interrompido). */
+  fatalSummaryPath?: string;
   log: string[];
 };
 

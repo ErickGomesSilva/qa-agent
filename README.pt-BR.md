@@ -88,7 +88,7 @@ Sem instalador: `npm install`, `npx playwright install chromium`, `npm start`.
 | F5 | Login | 1–10 contas ou arquivo `.md` / `.json` |
 | F6 | Webhook | Opcional; avisa bug confirmado na aplicação (não erro de teste) |
 | F7 | Opções | **Rodar tudo**, k6, massa, jornada, headed, grep, idioma, seguir após PRODUTO, retestar quarentena |
-| F8 | Missão | Inicia rodada + telemetria ao vivo |
+| F8 | Missão | Inicia rodada + telemetria ao vivo (**R** = regenerar specs **e** forçar novo mapa/roteiro) |
 | F9 | Consulta | **1** relatórios · **2** matriz · **3** quarentena · **4** jornadas · **5** problemas |
 
 Enter grava a aba. Na F8, Enter inicia a rodada. Sem TTY: `qaagent --plain`. Reconfigurar: `qaagent --plain --reconfigure`.
@@ -161,6 +161,22 @@ Na missão completa a ordem é:
 4. **Generate** lê roteiro + mapa + requisitos (`loginAs` no perfil da linha; consulta ≠ heading)
 5. Auditoria, massa, Playwright, triagem (como antes)
 6. Relatórios: `COBERTURA-RESUMO-*.md` + **`PROBLEMAS.md`** — bloqueios (massa/perfil), falhas Playwright com erro, produto, HTTP 4xx do mapa, CAs sem spec, stubs. F9 → **5 Problemas**.
+7. Em **erro fatal** (agente Cursor caiu, limite de loops, etc.): grava `scripts/falhas/FALHA-FATAL.md` (+ `.json`) com onde parou, marcos concluídos e próximos passos — e imprime o resumo no log da F8 / CLI.
+
+### Reuso de mapa e roteiro
+
+`MAPA-PERFIL.json` e `ROTEIRO.json` guardam um **fingerprint** dos inputs (URL, F5, escopo, profundidade de crawl; o roteiro inclui também os hashes dos CAs).
+
+| Situação | Comportamento |
+|----------|----------------|
+| Fingerprints iguais aos da rodada anterior | **Reutiliza** mapa e roteiro (sem novo crawl Playwright) |
+| Só requisitos/CAs mudaram | **Reutiliza o mapa**; **refaz só o roteiro** |
+| URL, F5, escopo ou crawl mudaram (ou arquivo antigo sem fingerprint) | **Refaz mapa + roteiro** |
+| Tecla **R** (regenerate) na F8 | **Força** mapa + roteiro + reescrita de specs |
+
+Mudança só na UI do app (sem alterar URL/F5/requisitos) **não** invalida o cache — use **R** regenerate.
+
+Specs Playwright: se já existirem arquivos em `scripts/tests`, a geração é pulada salvo **R** regenerate (igual às versões anteriores).
 
 Run **geral** e **focado** usam o mesmo motor. Recorte em `data/projects/<slug>/scripts/escopo.json` (exemplo em `escopo.example.json`) ou env:
 

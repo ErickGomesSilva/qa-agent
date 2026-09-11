@@ -352,6 +352,9 @@ function appendRunSummary(state: State, run: OrchestratorRun): void {
     );
   }
   if (run.error) state.log.push(`${t("app.error", { msg: run.error })}`);
+  if (run.fatalSummaryPath) {
+    state.log.push(t("app.fatalSummary", { path: run.fatalSummaryPath }));
+  }
 }
 
 function renderLogPanel(state: State, width: number, height: number): string[] {

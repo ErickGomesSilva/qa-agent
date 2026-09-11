@@ -16,11 +16,11 @@ import { runGenerateAgent } from "./generate-agent.ts";
 import { runLogicAgent } from "./logic-agent.ts";
 import { filterAccessesByEscopo, loadRunEscopo } from "./escopo.ts";
 import { runLogicExplore } from "./logic-explore.ts";
-import { runProfileMap } from "./profile-map.ts";
-import { writeRoteiro } from "./roteiro.ts";
+import { ensureMapAndRoteiro } from "./roteiro-cache.ts";
 import { runUserTour } from "./user-tour.ts";
 import { runPlaywright } from "./playwright-runner.ts";
 import { runK6, shouldRunK6 } from "./k6-runner.ts";
+import { formatFatalSummaryTerminal, writeFatalSummary } from "./fatal-summary.ts";
 import { activeRun, appendLog, getRun, saveRun } from "./store.ts";
 import { runCoverageAudit } from "./coverage-audit.ts";
 import { runDeepenAgent } from "./deepen-agent.ts";
@@ -208,11 +208,8 @@ export async function startRun(
   saveRun(run);
 
   const done = loop(run, opts.onLog).catch((err) => {
-    run.status = "error";
-    run.error = err instanceof Error ? err.message : String(err);
     const log = bindLog(run, opts.onLog);
-    log(`erro fatal: ${run.error}`);
-    saveRun(run);
+    recordFatal(run, log, err instanceof Error ? err.message : String(err));
   }).finally(() => {
     secrets.delete(run.id);
   });
@@ -232,6 +229,22 @@ function bindLog(
     appendLog(run, line);
     onLog?.(line);
   };
+}
+
+function recordFatal(run: OrchestratorRun, log: (line: string) => void, errMsg: string): void {
+  run.status = "error";
+  run.error = errMsg;
+  log(`erro fatal: ${run.error}`);
+  try {
+    const summary = writeFatalSummary(run);
+    run.fatalSummaryPath = summary.mdPath;
+    for (const line of formatFatalSummaryTerminal(summary)) log(line);
+  } catch (summaryErr) {
+    log(
+      `aviso: nao foi possivel gravar FALHA-FATAL.md (${summaryErr instanceof Error ? summaryErr.message : String(summaryErr)})`,
+    );
+  }
+  saveRun(run);
 }
 
 async function runCoverageAuditPhase(
@@ -473,20 +486,19 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
   log("▸ fase: Mapa por perfil — Playwright (menu, controles, HTTP 4xx) antes de gerar specs");
   const escopo = loadRunEscopo();
   const mapAccesses = filterAccessesByEscopo(creds.accesses, escopo);
-  const { map, explore } = await runProfileMap({
+  const { explore, mapReused, roteiroReused } = await ensureMapAndRoteiro({
     baseUrl: creds.baseUrl,
     accesses: mapAccesses,
+    allAccessesForLabels: creds.accesses,
     escopo,
+    force: run.regenerate,
     onLog: log,
   });
-  const f5Labels = creds.accesses.map((a, i) => a.label?.trim() || `acesso-${i + 1}`);
-  writeRoteiro({
-    map,
-    f5Labels,
-    f5ProfileCount: creds.accessCount,
-    escopo,
-    onLog: log,
-  });
+  if (mapReused && roteiroReused) {
+    log("▸ fase: Mapa/roteiro — reutilizados (sem novo crawl)");
+  } else if (mapReused) {
+    log("▸ fase: Mapa reutilizado — roteiro atualizado");
+  }
 
   const specsBefore = listSpecFiles();
   if (specsBefore.length === 0 || run.regenerate) {
@@ -754,7 +766,5 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
   }
 
   persistArtifacts(run.playwright);
-  run.status = "error";
-  run.error = `Limite interno de ${maxLoops} voltas da suíte`;
-  saveRun(run);
+  recordFatal(run, log, `Limite interno de ${maxLoops} voltas da suíte`);
 }
