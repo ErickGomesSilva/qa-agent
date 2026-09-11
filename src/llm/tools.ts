@@ -86,6 +86,23 @@ export async function runTool(
   name: string,
   args: Record<string, unknown>,
 ): Promise<string> {
+  try {
+    return await runToolInner(cwd, name, args);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return (
+      `ERRO_FERRAMENTA: ${msg}\n` +
+      "Se for path fora do workspace, use apenas caminhos relativos (ex. scripts/falhas/ULTIMA-FALHA.log). " +
+      "Classifique AMBIENTE se o bloqueio impedir a análise — não invente PRODUTO."
+    );
+  }
+}
+
+async function runToolInner(
+  cwd: string,
+  name: string,
+  args: Record<string, unknown>,
+): Promise<string> {
   if (name === "list_dir") {
     const dir = inside(cwd, String(args.path ?? "."));
     if (!existsSync(dir)) return "(nao existe)";

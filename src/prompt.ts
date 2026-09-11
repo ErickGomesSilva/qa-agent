@@ -7,6 +7,9 @@ export function buildTriagePrompt(opts: {
   grep: string;
   playwright: PlaywrightOutcome;
   mcpServers: McpFile;
+  /** Paths relativos ao workspace (já stageados em scripts/falhas/). */
+  evidenceLogRel: string;
+  evidenceJsonRel: string;
 }): string {
   const failure = opts.playwright.failures[0];
   const mcpNames = Object.keys(opts.mcpServers);
@@ -24,8 +27,10 @@ Siga a skill \`.cursor/skills/qa-e2e-requisitos\` e \`AGENTS.md\` deste workspac
 - Pasta de scripts: ${e2e}
 - Grep da suíte: ${opts.grep || "(todos)"}
 - Stats Playwright: expected=${opts.playwright.stats.expected} unexpected=${opts.playwright.stats.unexpected} skipped=${opts.playwright.stats.skipped} exit=${opts.playwright.exitCode}
-- JSON da rodada: ${opts.playwright.rawJsonPath.replace(/\\/g, "/")}
-- Log: ${opts.playwright.logPath.replace(/\\/g, "/")}
+- Evidência Playwright (USE SÓ ESTES PATHS — relativos ao workspace):
+  - Log: \`${opts.evidenceLogRel}\`
+  - JSON: \`${opts.evidenceJsonRel}\`
+- **Proibido** ler \`../runs/\`, \`data/runs/\` ou qualquer caminho fora do workspace. Se a tool recusar um path, classifique **AMBIENTE** (ferramenta/sandbox), **não** PRODUTO.
 
 ## Falha que parou a suíte
 
@@ -41,13 +46,18 @@ ${(failure?.error ?? "sem mensagem").slice(0, 8000)}
 ## O que fazer (nesta ordem)
 
 1. Ler o CA (Dado/Quando/Então) em \`requisitos/\`. Não chute o “Então”.
-2. Reproduzir **somente** este cenário (PowerShell: aspas no grep). Não relançar a suíte inteira.
+2. Ler \`${opts.evidenceLogRel}\` / \`${opts.evidenceJsonRel}\` se precisar de detalhe. Reproduzir **somente** este cenário se for TESTE. Não relançar a suíte inteira.
 3. Classificar **uma** classe: TESTE | PRODUTO | MASSA | AMBIENTE | INCONCLUSIVO.
+   - **TESTE** — locator/assert/script errado (corrigível no spec).
+   - **PRODUTO** — bug real na aplicação sob teste.
+   - **MASSA** — dado/credencial de teste faltando ou inválido.
+   - **AMBIENTE** — URL inacessível, rede, Chromium, timeout de infra, **erro da ferramenta QA-Agent** (path fora do workspace, API LLM, sandbox). **Não** é bug de produto. Pare e explique o que o usuário deve fazer.
+   - **INCONCLUSIVO** — evidência insuficiente.
    - Não altere copy/UI da aplicação sob teste para o locator passar.
    - Credenciais só via env (\`e2eEnv()\`). Nunca grave senha em PENDENTE.md.
 4. TESTE: corrija o locator/assert no spec em \`scripts/tests\`, reexecute **este** CA. Não avise desenvolvedor. Não use Discord.
 5. PRODUTO: grave \`scripts/falhas/PENDENTE.md\` com o template da skill. Só então notifique Discord, e **somente** se houver MCP Discord configurado.
-6. MASSA / AMBIENTE / INCONCLUSIVO: não Discord, não “bug de produto”.
+6. MASSA / AMBIENTE / INCONCLUSIVO: não Discord, não “bug de produto”. Em AMBIENTE, o resumo deve dizer claramente que a suíte **parou** e o que o usuário deve verificar.
 
 ## Discord
 

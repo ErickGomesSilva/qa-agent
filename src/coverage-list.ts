@@ -4,7 +4,16 @@ import type { CoverageReportDetail } from "./coverage-report.ts";
 import type { K6Outcome } from "./k6-types.ts";
 import { scriptsDir } from "./workspace.ts";
 
-export type ReportKind = "cobertura" | "k6" | "matriz" | "quarentena" | "jornada" | "problemas" | "falha-fatal" | "continuar";
+export type ReportKind =
+  | "cobertura"
+  | "k6"
+  | "matriz"
+  | "quarentena"
+  | "jornada"
+  | "problemas"
+  | "falha-fatal"
+  | "continuar"
+  | "aviso-ambiente";
 
 export type ReportEntry = {
   kind: ReportKind;
@@ -81,6 +90,7 @@ function readSpecial(dir: string, fileName: string): ReportEntry | undefined {
   if (fileName === "PROBLEMAS.md") return readNamedMd(dir, fileName, "problemas", "problemas");
   if (fileName === "FALHA-FATAL.md") return readNamedMd(dir, fileName, "falha-fatal", "falha-fatal");
   if (fileName === "CONTINUAR.md") return readNamedMd(dir, fileName, "continuar", "continuar");
+  if (fileName === "AVISO-AMBIENTE.md") return readNamedMd(dir, fileName, "aviso-ambiente", "aviso-ambiente");
   return undefined;
 }
 
@@ -148,6 +158,7 @@ export function formatReportKind(entry: ReportEntry): string {
   if (entry.kind === "problemas") return "problemas";
   if (entry.kind === "falha-fatal") return "falha-fatal";
   if (entry.kind === "continuar") return "continuar";
+  if (entry.kind === "aviso-ambiente") return "aviso-ambiente";
   return "cobertura";
 }
 

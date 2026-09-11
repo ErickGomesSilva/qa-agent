@@ -461,7 +461,12 @@ type ConsultView = (typeof CONSULT_VIEWS)[number];
 /** Visão 1: coberturas, k6 e resumo de interrupção fatal. */
 function listRelatoriosReports(reports: ReportEntry[]): ReportEntry[] {
   return reports.filter(
-    (r) => r.kind === "cobertura" || r.kind === "k6" || r.kind === "falha-fatal" || r.kind === "continuar",
+    (r) =>
+      r.kind === "cobertura" ||
+      r.kind === "k6" ||
+      r.kind === "falha-fatal" ||
+      r.kind === "continuar" ||
+      r.kind === "aviso-ambiente",
   );
 }
 

@@ -784,6 +784,15 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
     log(
       `triagem classe=${triage.classe} corrigiuTeste=${triage.corrigiuTeste} discord=${triage.discordEnviado}`,
     );
+    if (triage.classe === "AMBIENTE") {
+      log("⚠ AMBIENTE — isto NÃO é bug de produto. Suíte PARADA para você corrigir infra/ferramenta.");
+      log(`⚠ ${triage.resumo}`);
+      log("⚠ Detalhe: scripts/falhas/AVISO-AMBIENTE.md (e TRIAGEM.json)");
+    } else if (triage.classe === "MASSA") {
+      log("⚠ MASSA — suíte parada; falta dado/credencial de teste (não é PRODUTO).");
+    } else if (triage.classe === "INCONCLUSIVO") {
+      log("⚠ INCONCLUSIVO — suíte parada; evidência insuficiente para classificar.");
+    }
     saveRun(run);
 
     if (triage.classe === "TESTE" && triage.corrigiuTeste && run.autoResumeOnTeste) {
