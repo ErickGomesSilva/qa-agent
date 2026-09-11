@@ -21,6 +21,12 @@ import { runUserTour } from "./user-tour.ts";
 import { runPlaywright } from "./playwright-runner.ts";
 import { runK6, shouldRunK6 } from "./k6-runner.ts";
 import { formatFatalSummaryTerminal, writeFatalSummary } from "./fatal-summary.ts";
+import {
+  clearContinuar,
+  formatContinuarTerminal,
+  loadContinuar,
+  writeContinuarGuide,
+} from "./pause-guide.ts";
 import { activeRun, appendLog, getRun, saveRun } from "./store.ts";
 import { runCoverageAudit } from "./coverage-audit.ts";
 import { runDeepenAgent } from "./deepen-agent.ts";
@@ -124,6 +130,36 @@ export function requestCancel(id: string): boolean {
   return true;
 }
 
+export function isCancelRequested(id: string): boolean {
+  return cancelled.has(id);
+}
+
+class UserPauseError extends Error {
+  constructor(message = "pausa solicitada pelo usuário") {
+    super(message);
+    this.name = "UserPauseError";
+  }
+}
+
+function throwIfCancelled(run: OrchestratorRun): void {
+  if (cancelled.has(run.id)) throw new UserPauseError();
+}
+
+function finishUserPause(run: OrchestratorRun, log: (line: string) => void): void {
+  cancelled.delete(run.id);
+  run.status = "paused_user";
+  run.error = "Pausa solicitada pelo usuário";
+  log("pausa: interrompendo no checkpoint — gravando CONTINUAR.md");
+  try {
+    const guide = writeContinuarGuide(run, "user_pause");
+    run.continuarPath = guide.mdPath;
+    for (const line of formatContinuarTerminal(guide)) log(line);
+  } catch (err) {
+    log(`aviso: nao gravou CONTINUAR.md (${err instanceof Error ? err.message : String(err)})`);
+  }
+  saveRun(run);
+}
+
 function resolveRunCredentials(body: CreateRunBody): ResolvedCredentials {
   const defaultMd = credenciaisPath();
   const mdPath = body.credentialsMd
@@ -182,6 +218,7 @@ export async function startRun(
   const continueOnProduto = body.continueOnProduto ?? config.continueOnProduto;
   const retestQuarantine = body.retestQuarantine ?? config.retestQuarantine;
   const mode: RunMode = body.mode ?? "full";
+  const continuar = mode === "full" ? loadContinuar() : undefined;
   const now = new Date().toISOString();
   const run: OrchestratorRun = {
     id: randomUUID(),
@@ -199,6 +236,8 @@ export async function startRun(
     continueOnProduto,
     retestQuarantine,
     mode,
+    skipLogicAgent: Boolean(continuar?.resume.skipLogicAgent) && !body.regenerate,
+    skipTour: Boolean(continuar?.resume.skipTour),
     stuckCases: [],
     productFindings: [],
     rounds: 0,
@@ -209,9 +248,14 @@ export async function startRun(
 
   const done = loop(run, opts.onLog).catch((err) => {
     const log = bindLog(run, opts.onLog);
+    if (err instanceof UserPauseError || cancelled.has(run.id)) {
+      finishUserPause(run, log);
+      return;
+    }
     recordFatal(run, log, err instanceof Error ? err.message : String(err));
   }).finally(() => {
     secrets.delete(run.id);
+    cancelled.delete(run.id);
   });
 
   if (opts.wait) {
@@ -347,10 +391,17 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
   const creds = secrets.get(run.id);
   if (!creds) throw new Error("credenciais da rodada ausentes na memória");
 
+  const continuar = loadContinuar();
+  if (continuar && run.mode === "full") {
+    log(`▸ retomada — lendo CONTINUAR.md (${continuar.at})`);
+    log(continuar.resume.note);
+  }
+
   log(`sincronizando requisitos → ${workspaceDir()}/requisitos`);
   log("▸ fase: Preparacao — sincronizando requisitos");
   syncRequisitos(run.requisitosPath);
   runReqSync(log);
+  throwIfCancelled(run);
 
   if (run.mode === "load-only") {
     log("modo load-only — smoke/carga k6 (Playwright não executado)");
@@ -480,6 +531,7 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
   }
 
   await ensureChromium(log);
+  throwIfCancelled(run);
 
   run.status = "exploring_logic";
   saveRun(run);
@@ -499,6 +551,7 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
   } else if (mapReused) {
     log("▸ fase: Mapa reutilizado — roteiro atualizado");
   }
+  throwIfCancelled(run);
 
   const specsBefore = listSpecFiles();
   if (specsBefore.length === 0 || run.regenerate) {
@@ -521,14 +574,20 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
   } else {
     log(t("notice.scriptsFound", { n: specsBefore.length }));
   }
+  throwIfCancelled(run);
 
-  await runLogicAgent({
-    baseUrl: creds.baseUrl,
-    explore,
-    onLog: log,
-  });
+  if (run.skipLogicAgent) {
+    log("retomada: pulando agente de lógica / RNs (CONTINUAR.md)");
+  } else {
+    await runLogicAgent({
+      baseUrl: creds.baseUrl,
+      explore,
+      onLog: log,
+    });
+  }
+  throwIfCancelled(run);
 
-  if (config.tourEnabled) {
+  if (config.tourEnabled && !run.skipTour) {
     run.status = "touring";
     saveRun(run);
     const tour = await runUserTour({
@@ -539,11 +598,15 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
       onLog: log,
     });
     log(`jornada gravada: ${tour.mdPath}`);
+  } else if (config.tourEnabled && run.skipTour) {
+    log("retomada: pulando jornada (CONTINUAR.md)");
   }
+  throwIfCancelled(run);
 
   log("▸ fase: Auditoria — classificando cobertura dos CAs");
   const audit = await runCoverageAuditPhase(run, log);
   await finalizeCoverageReport(run, audit, log);
+  throwIfCancelled(run);
 
   try {
     const manifest = loadMassaManifest();
@@ -568,6 +631,7 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
     });
     await applyMassaBatch({ creds, limit: config.massaApplyLimit, onLog: log });
   }
+  throwIfCancelled(run);
 
   ensureAuthSessionFresh({
     baseUrl: creds.baseUrl,
@@ -641,14 +705,14 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
       const k6ok = await tryRunK6Phase(run, log);
       if (!k6ok) run.status = "load_failed";
     }
+    clearContinuar();
+    if (continuar) log("CONTINUAR.md removido — retomada concluída");
     saveRun(run);
   };
 
   while (run.rounds < maxLoops) {
     if (cancelled.has(run.id)) {
-      run.status = "cancelled";
-      log("cancelado");
-      saveRun(run);
+      finishUserPause(run, log);
       return;
     }
 
@@ -672,7 +736,12 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
       runId: run.id,
       env: mergePlaywrightEnvWithMassa(creds),
       onLog: log,
+      shouldAbort: () => cancelled.has(run.id),
     });
+    if (cancelled.has(run.id)) {
+      finishUserPause(run, log);
+      return;
+    }
     run.playwright = pw;
     saveRun(run);
 
@@ -710,6 +779,7 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
       playwright: pw,
       onLog: log,
     });
+    throwIfCancelled(run);
     run.triage = triage;
     log(
       `triagem classe=${triage.classe} corrigiuTeste=${triage.corrigiuTeste} discord=${triage.discordEnviado}`,

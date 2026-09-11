@@ -43,6 +43,7 @@ export type RunStatus =
   | "paused_massa"
   | "paused_ambiente"
   | "paused_inconclusivo"
+  | "paused_user"
   | "complete_with_findings"
   | "error"
   | "cancelled";
@@ -135,6 +136,9 @@ export type OrchestratorRun = {
   autoResumeOnTeste: boolean;
   k6Enabled: boolean;
   mode: RunMode;
+  /** Retomada a partir de CONTINUAR.md */
+  skipLogicAgent?: boolean;
+  skipTour?: boolean;
   playwright?: PlaywrightOutcome;
   k6?: K6Outcome;
   triage?: TriageResult;
@@ -149,6 +153,8 @@ export type OrchestratorRun = {
   error?: string;
   /** Resumo automático quando a rodada aborta (fatal / fluxo interrompido). */
   fatalSummaryPath?: string;
+  /** Guia CONTINUAR.md após pausa do usuário. */
+  continuarPath?: string;
   log: string[];
 };
 

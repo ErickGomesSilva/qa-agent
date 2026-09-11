@@ -31,14 +31,16 @@ export function activeRun(): OrchestratorRun | undefined {
       "queued",
       "generating_scripts",
       "exploring_logic",
+      "touring",
       "auditing_coverage",
+      "deepening_stubs",
+      "unblocking_massa",
+      "generating_massa",
       "running_k6",
       "running_playwright",
       "running_agent",
       "resuming",
-    ].includes(
-      r.status,
-    ),
+    ].includes(r.status),
   );
 }
 

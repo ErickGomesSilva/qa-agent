@@ -80,6 +80,7 @@ export async function runPlaywright(opts: {
   env?: Record<string, string>;
   onLog?: (line: string) => void;
   grepInvert?: string;
+  shouldAbort?: () => boolean;
 }): Promise<PlaywrightOutcome> {
   const cli = playwrightCli();
   if (!existsSync(cli)) {
@@ -106,7 +107,13 @@ export async function runPlaywright(opts: {
     `▸ fase: Playwright — grep=${opts.grep || "(todos)"}${opts.grepInvert ? ` invert=${opts.grepInvert}` : ""} max-failures=1`,
   );
 
-  const { stdout, stderr, exitCode } = await spawnNode(args, opts.e2eDir, opts.env, opts.onLog);
+  const { stdout, stderr, exitCode } = await spawnNode(
+    args,
+    opts.e2eDir,
+    opts.env,
+    opts.onLog,
+    opts.shouldAbort,
+  );
   const combined = `${stderr}\n${stdout}`;
   writeFileSync(logPath, combined, "utf8");
 
@@ -177,6 +184,7 @@ function spawnNode(
   cwd: string,
   extraEnv?: Record<string, string>,
   onLog?: (line: string) => void,
+  shouldAbort?: () => boolean,
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, args, {
@@ -188,6 +196,7 @@ function spawnNode(
     let stderr = "";
     let outBuf = "";
     let errBuf = "";
+    let aborted = false;
 
     const flushLines = (buf: string, isErr: boolean): string => {
       const parts = buf.split(/\r?\n/);
@@ -200,6 +209,26 @@ function spawnNode(
       return rest;
     };
 
+    const abortTimer = shouldAbort
+      ? setInterval(() => {
+          if (!shouldAbort() || aborted) return;
+          aborted = true;
+          onLog?.("pausa: encerrando Playwright…");
+          try {
+            child.kill("SIGTERM");
+          } catch {
+            /* ignore */
+          }
+          setTimeout(() => {
+            try {
+              if (!child.killed) child.kill("SIGKILL");
+            } catch {
+              /* ignore */
+            }
+          }, 2000);
+        }, 800)
+      : undefined;
+
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
@@ -210,11 +239,15 @@ function spawnNode(
       stderr += chunk;
       errBuf = flushLines(errBuf + chunk, true);
     });
-    child.on("error", reject);
+    child.on("error", (err) => {
+      if (abortTimer) clearInterval(abortTimer);
+      reject(err);
+    });
     child.on("close", (code) => {
+      if (abortTimer) clearInterval(abortTimer);
       if (outBuf.trim()) flushLines(`${outBuf}\n`, false);
       if (errBuf.trim()) flushLines(`${errBuf}\n`, true);
-      resolve({ stdout, stderr, exitCode: code ?? 1 });
+      resolve({ stdout, stderr, exitCode: aborted ? 130 : (code ?? 1) });
     });
   });
 }

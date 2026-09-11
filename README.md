@@ -133,7 +133,7 @@ qaagent-clean
 3. Join requirements ∩ map ∩ F5 labels → `scripts/falhas/ROTEIRO.json`
 4. **Generate** reads roteiro + map + requirements (unless specs already exist)
 5. Audit, mass, Playwright, triage
-6. Reports: coverage + **`PROBLEMAS.md`**. On a **fatal** interrupt (Cursor agent error, loop limit, etc.) also writes `scripts/falhas/FALHA-FATAL.md` (+ `.json`) and prints a short “where it stopped” summary in the F8/CLI log.
+6. Reports: coverage + **`PROBLEMAS.md`**. On a **fatal** interrupt also writes `FALHA-FATAL.md`. **Pause:** press **P** or **Esc** during a run to stop at the next checkpoint and write `CONTINUAR.md`; Enter on F8 resumes (skips logic/tour per the guide). Esc while idle still quits the TUI.
 
 ### Reusing map and roteiro
 

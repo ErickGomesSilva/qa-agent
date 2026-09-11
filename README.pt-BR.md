@@ -162,6 +162,7 @@ Na missão completa a ordem é:
 5. Auditoria, massa, Playwright, triagem (como antes)
 6. Relatórios: `COBERTURA-RESUMO-*.md` + **`PROBLEMAS.md`** — bloqueios (massa/perfil), falhas Playwright com erro, produto, HTTP 4xx do mapa, CAs sem spec, stubs. F9 → **5 Problemas**.
 7. Em **erro fatal** (agente Cursor caiu, limite de loops, etc.): grava `scripts/falhas/FALHA-FATAL.md` (+ `.json`) com onde parou, marcos concluídos e próximos passos — e imprime o resumo no log da F8 / CLI.
+8. **Pausa:** durante a rodada, **P** ou **Esc** pede pausa no próximo checkpoint e grava `scripts/falhas/CONTINUAR.md` (guia de retomada). Enter na F8 retoma (pula lógica/jornada conforme o guia). Esc com a rodada **parada** ainda sai do TUI; **Ctrl+C** encerra o processo.
 
 ### Reuso de mapa e roteiro
 

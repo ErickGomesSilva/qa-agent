@@ -7,7 +7,9 @@ import {
   providerNeedsUrl,
 } from "../llm/presets.ts";
 import type { OrchestratorRun } from "../types.ts";
-import { startRun } from "../orchestrator.ts";
+import { startRun, requestCancel, isCancelRequested } from "../orchestrator.ts";
+import { activeRun } from "../store.ts";
+import { loadContinuar } from "../pause-guide.ts";
 import { applyRunTelemetry, formatElapsed, type RunTelemetry } from "../run-telemetry.ts";
 import { config } from "../config.ts";
 import type { CoverageReportDetail } from "../coverage-report.ts";
@@ -352,6 +354,9 @@ function appendRunSummary(state: State, run: OrchestratorRun): void {
     );
   }
   if (run.error) state.log.push(`${t("app.error", { msg: run.error })}`);
+  if (run.continuarPath) {
+    state.log.push(t("app.continuarSummary", { path: run.continuarPath }));
+  }
   if (run.fatalSummaryPath) {
     state.log.push(t("app.fatalSummary", { path: run.fatalSummaryPath }));
   }
@@ -436,10 +441,16 @@ function boardLines(state: State, width: number): string[] {
     lines.push(
       ink(`  ${t("app.grepFilter", { grep: grep || t("app.grepAll") })}`, theme.muted),
     );
+    lines.push(ink(`  ${t("app.pauseHint")}`, theme.warn));
   } else if (miss.length) {
     lines.push(ink(`× ${t("app.missing", { list: miss.join(" · ") })}`, theme.err));
   } else {
-    lines.push(ink(`◆ ${t("app.ready")}`, theme.ok));
+    const cont = loadContinuar();
+    if (cont) {
+      lines.push(ink(`◆ ${t("app.continuarPending", { phase: cont.lastPhase.slice(0, 50) })}`, theme.warn));
+    } else {
+      lines.push(ink(`◆ ${t("app.ready")}`, theme.ok));
+    }
   }
   return lines;
 }
@@ -447,8 +458,15 @@ function boardLines(state: State, width: number): string[] {
 const CONSULT_VIEWS = ["relatorios", "matriz", "quarentena", "jornadas", "problemas"] as const;
 type ConsultView = (typeof CONSULT_VIEWS)[number];
 
+/** Visão 1: coberturas, k6 e resumo de interrupção fatal. */
+function listRelatoriosReports(reports: ReportEntry[]): ReportEntry[] {
+  return reports.filter(
+    (r) => r.kind === "cobertura" || r.kind === "k6" || r.kind === "falha-fatal" || r.kind === "continuar",
+  );
+}
+
 function consultMdPath(view: ConsultView, reports: ReportEntry[]): string | undefined {
-  if (view === "relatorios") return reports[0]?.mdPath;
+  if (view === "relatorios") return listRelatoriosReports(reports)[0]?.mdPath;
   const kind =
     view === "matriz"
       ? "matriz"
@@ -622,7 +640,7 @@ function renderResumosTab(state: State, width: number, rows: number): string[] {
     return frame(lines, width, rows, t("tab.resumos"), "heavy");
   }
 
-  const list = state.reports.filter((r) => r.kind === "cobertura" || r.kind === "k6");
+  const list = listRelatoriosReports(state.reports);
   if (!list.length) {
     lines.push(ink(`  ${t("reports.empty")}`, theme.warn));
     lines.push(ink(`  ${t("reports.emptyHint")}`, theme.muted));
@@ -636,7 +654,10 @@ function renderResumosTab(state: State, width: number, rows: number): string[] {
       const idx = start + i;
       const selected = idx === state.reportIndex;
       const mark = selected ? ink("▸", theme.accentHi) : ink("·", theme.muted);
-      const kind = ink(`[${formatReportKind(r)}]`, r.kind === "k6" ? theme.info : theme.accent);
+      const kind = ink(
+        `[${formatReportKind(r)}]`,
+        r.kind === "k6" ? theme.info : r.kind === "falha-fatal" ? theme.warn : theme.accent,
+      );
       const title = ink(r.projectSlug.padEnd(14), selected ? theme.accentHi : theme.fg);
       const when = ink(fmtWhen(r.modifiedAt), theme.muted);
       const stats = formatReportStats(r);
@@ -1149,7 +1170,7 @@ async function saveTab(state: State): Promise<void> {
       }
       const r =
         state.consultView === "relatorios"
-          ? state.reports.filter((x) => x.kind === "cobertura" || x.kind === "k6")[state.reportIndex]
+          ? listRelatoriosReports(state.reports)[state.reportIndex]
           : undefined;
       const md = r?.mdPath ?? consultMdPath(state.consultView, state.reports);
       if (!md) {
@@ -1281,8 +1302,24 @@ export async function runTui(): Promise<void> {
 
     stopKeys = attachKeys((key: Key) => {
       void (async () => {
-        if ((key.type === "ctrl" && key.ch === "c") || key.type === "escape") {
+        if ((key.type === "ctrl" && key.ch === "c") || (key.type === "escape" && !state.running)) {
           exit();
+          return;
+        }
+        if (state.running && (key.type === "escape" || (key.type === "char" && (key.ch === "p" || key.ch === "P")))) {
+          const run = activeRun();
+          if (run && requestCancel(run.id)) {
+            state.log.push(t("app.pauseRequested"));
+            state.flash = t("app.pauseRequested");
+            state.flashErr = false;
+          } else if (run && isCancelRequested(run.id)) {
+            state.flash = t("app.pausePending");
+            state.flashErr = false;
+          } else {
+            state.flash = t("app.pauseNoRun");
+            state.flashErr = true;
+          }
+          paint(state);
           return;
         }
         if (key.type === "f" && key.n >= 1 && key.n <= 9) {
@@ -1576,7 +1613,7 @@ export async function runTui(): Promise<void> {
                 const n = loadImpedimentsReport()?.itens.length ?? 0;
                 if (n) state.consultIndex = (state.consultIndex + dir + n) % n;
               } else {
-                const list = state.reports.filter((x) => x.kind === "cobertura" || x.kind === "k6");
+                const list = listRelatoriosReports(state.reports);
                 if (list.length) state.reportIndex = (state.reportIndex + dir + list.length) % list.length;
               }
               paint(state);
