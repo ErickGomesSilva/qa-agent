@@ -74,7 +74,7 @@ function Download-And-Sync {
   }
 }
 
-Write-Info "QA Agent — instalador remoto (Windows)"
+Write-Info "QA Agent - instalador remoto (Windows)"
 Write-Info "Pasta de instalacao: $InstallDir"
 Write-Info ""
 
@@ -83,7 +83,7 @@ if (-not (Test-NodeOk)) {
 }
 
 if (Test-Path (Join-Path $InstallDir "instalar.mjs")) {
-  Write-Info "Instalacao existente — atualizando codigo (preserva .env e data/)..."
+  Write-Info "Instalacao existente - atualizando codigo (preserva .env e data/)..."
 } else {
   Write-Info "Primeira instalacao..."
 }
