@@ -92,7 +92,7 @@ export async function runAnthropicAgent(
       if (b.type === "text" && b.text) {
         lastText += b.text;
         const snippet = b.text.slice(0, 400).replace(/\s+/g, " ");
-        if (snippet) opts.onLog(snippet);
+        if (snippet) opts.onLog(`agente▸ ${snippet}`);
       }
     }
 
@@ -102,8 +102,11 @@ export async function runAnthropicAgent(
 
     const results: AnthContent[] = [];
     for (const call of toolUses) {
-      opts.onLog(`tool ${call.name} ${String(call.input.path ?? "")}`);
+      const path = String(call.input?.path ?? "");
+      const detail = path || JSON.stringify(call.input ?? {}).slice(0, 100);
+      opts.onLog(`tool ${call.name} ${detail}`);
       const result = await runTool(opts.cwd, call.name, call.input ?? {});
+      opts.onLog(`tool ${call.name} → ${result.slice(0, 160).replace(/\s+/g, " ")}`);
       results.push({
         type: "tool_result",
         tool_use_id: call.id,

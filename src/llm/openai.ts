@@ -95,7 +95,7 @@ export async function runOpenAiAgent(
     if (msg.content) {
       lastText += msg.content;
       const snippet = msg.content.slice(0, 400).replace(/\s+/g, " ");
-      if (snippet) opts.onLog(snippet);
+      if (snippet) opts.onLog(`agente▸ ${snippet}`);
     }
     const calls = msg.tool_calls ?? [];
     if (!calls.length) {
@@ -108,8 +108,11 @@ export async function runOpenAiAgent(
       } catch {
         args = {};
       }
-      opts.onLog(`tool ${call.function.name} ${String(args.path ?? "")}`);
+      const path = String(args.path ?? "");
+      const detail = path || JSON.stringify(args).slice(0, 100);
+      opts.onLog(`tool ${call.function.name} ${detail}`);
       const result = await runTool(opts.cwd, call.function.name, args);
+      opts.onLog(`tool ${call.function.name} → ${result.slice(0, 160).replace(/\s+/g, " ")}`);
       messages.push({
         role: "tool",
         tool_call_id: call.id,

@@ -11,6 +11,13 @@ import { startRun, requestCancel, isCancelRequested } from "../orchestrator.ts";
 import { activeRun } from "../store.ts";
 import { loadContinuar } from "../pause-guide.ts";
 import { applyRunTelemetry, formatElapsed, type RunTelemetry } from "../run-telemetry.ts";
+import {
+  clearAgentTelemetry,
+  formatAgentElapsed,
+  getAgentTelemetry,
+  ingestOrchestratorHint,
+  subscribeAgentTelemetry,
+} from "../agent-telemetry.ts";
 import { config } from "../config.ts";
 import type { CoverageReportDetail } from "../coverage-report.ts";
 import { existsSync, readFileSync } from "node:fs";
@@ -63,6 +70,7 @@ import {
   joinColumns,
   modelRow,
   stepHeading,
+  styleAgentEvent,
   styleLogLine,
   tabRail,
   tagline,
@@ -116,6 +124,7 @@ const STEPS: StepId[] = [
   "opcoes",
   "app",
   "resumos",
+  "agente",
 ];
 
 const PROVIDERS: WebhookProvider[] = ["discord", "slack", "teams", "generic"];
@@ -168,6 +177,8 @@ type State = {
   reportView?: { path: string; lines: string[]; scroll: number };
   runStartedAt?: number;
   runTelemetry: RunTelemetry;
+  agentScroll: number;
+  agentFollow: boolean;
 };
 
 let paintTimer: ReturnType<typeof setTimeout> | undefined;
@@ -242,6 +253,8 @@ function seedState(): State {
     consultView: "relatorios",
     consultIndex: 0,
     runTelemetry: { phase: "", detail: "" },
+    agentScroll: 0,
+    agentFollow: true,
   };
 }
 
@@ -249,6 +262,7 @@ function pushRunLog(state: State, line: string): void {
   state.log.push(line);
   if (state.log.length > 600) state.log.splice(0, state.log.length - 600);
   state.runTelemetry = applyRunTelemetry(state.runTelemetry, line);
+  ingestOrchestratorHint(line);
   if (isScriptNotice(line)) {
     state.flash = line;
     state.flashErr = false;
@@ -696,6 +710,61 @@ function renderAppTab(state: State, width: number, rows: number): string[] {
   return [...frame(board, width, boardH, t("app.board"), "heavy"), ...renderLogPanel(state, width, logH)];
 }
 
+function fmtAgentClock(at: number): string {
+  const d = new Date(at);
+  return d.toLocaleTimeString(getLocale(), { hour12: false });
+}
+
+function renderAgenteTab(state: State, width: number, rows: number): string[] {
+  const inner = Math.max(12, width - 4);
+  const snap = getAgentTelemetry();
+  const lines: string[] = [];
+
+  for (const w of wrapVisible(t("agente.intro"), inner)) {
+    lines.push(ink(`  ${w}`, theme.muted));
+  }
+  lines.push("");
+  lines.push(
+    ink(
+      `  ${t("agente.meta", {
+        provider: snap.provider || "—",
+        model: (snap.model || "—").slice(0, 28),
+        phase: (snap.phase || "—").slice(0, 40),
+        tools: snap.toolCount,
+        round: snap.round,
+        elapsed: formatAgentElapsed(),
+        live: snap.active ? t("agente.liveWord") : "",
+      })}`,
+      snap.active ? theme.info : theme.muted,
+    ),
+  );
+  lines.push(
+    ink(`  ${state.agentFollow ? t("agente.followOn") : t("agente.followOff")}`, theme.muted),
+  );
+  lines.push("");
+
+  if (!snap.events.length) {
+    lines.push(ink(`  ${t("agente.empty")}`, theme.warn));
+    return frame(lines, width, rows, t("tab.agente"), "heavy");
+  }
+
+  const headerUsed = lines.length + 2;
+  const maxRows = Math.max(4, rows - headerUsed);
+  const total = snap.events.length;
+  const start = state.agentFollow
+    ? Math.max(0, total - maxRows)
+    : Math.min(Math.max(0, state.agentScroll), Math.max(0, total - maxRows));
+  state.agentScroll = start;
+  const slice = snap.events.slice(start, start + maxRows);
+
+  for (const ev of slice) {
+    const clock = ink(fmtAgentClock(ev.at), theme.muted);
+    lines.push(`  ${clock} ${styleAgentEvent(ev.kind, ev.text.slice(0, Math.max(20, inner - 12)), state.tick)}`);
+  }
+
+  return frame(lines, width, rows, t("tab.agente"), "heavy");
+}
+
 function render(state: State): string {
   const cols = process.stdout.columns || 100;
   const rows = process.stdout.rows || 30;
@@ -703,7 +772,12 @@ function render(state: State): string {
   const steps = getSteps();
   const current = steps[state.tab]!;
   const required = steps.filter(
-    (s) => s.id !== "app" && s.id !== "resumos" && s.id !== "webhook" && s.id !== "opcoes",
+    (s) =>
+      s.id !== "app" &&
+      s.id !== "resumos" &&
+      s.id !== "agente" &&
+      s.id !== "webhook" &&
+      s.id !== "opcoes",
   );
   const armed = required.filter((s) => s.done).length;
   const live = state.running || state.spin || state.modelsLoading;
@@ -713,7 +787,11 @@ function render(state: State): string {
     tagline(width),
     tabRail(steps, state.tab, width),
     fill(ink("━".repeat(width), theme.border), width),
-    stepHeading(current, current.id === "app" || current.id === "resumos", width),
+    stepHeading(
+      current,
+      current.id === "app" || current.id === "resumos" || current.id === "agente",
+      width,
+    ),
     fill("", width),
   ];
 
@@ -724,7 +802,9 @@ function render(state: State): string {
       ? renderAppTab(state, width, bodyRows)
       : current.id === "resumos"
         ? renderResumosTab(state, width, bodyRows)
-        : tabBody(state, current.id, width, bodyRows);
+        : current.id === "agente"
+          ? renderAgenteTab(state, width, bodyRows)
+          : tabBody(state, current.id, width, bodyRows);
   const padded = [...body];
   while (padded.length < bodyRows) padded.push("");
 
@@ -735,7 +815,9 @@ function render(state: State): string {
         ? state.reportView
           ? t("help.reportsView")
           : t("help.reports")
-        : t("help.config");
+        : current.id === "agente"
+          ? t("help.agente")
+          : t("help.config");
   const out = [
     ...head,
     ...padded.slice(0, bodyRows).map((l) => fill(l, width)),
@@ -1227,6 +1309,9 @@ async function runApp(state: State): Promise<void> {
   const body = buildRunBody(state.regenerate);
   state.running = true;
   state.log = [];
+  clearAgentTelemetry();
+  state.agentScroll = 0;
+  state.agentFollow = true;
   state.lastRun = undefined;
   state.runStartedAt = Date.now();
   state.runTelemetry = { phase: "Preparacao", detail: t("app.runStarting") };
@@ -1304,8 +1389,13 @@ export async function runTui(): Promise<void> {
   };
 
   let stopKeys: () => void = () => {};
+  const unsubAgent = subscribeAgentTelemetry(() => {
+    if (state.agentFollow || STEPS[state.tab] === "agente" || state.running) {
+      schedulePaint(state, false);
+    }
+  });
   const spinTimer = setInterval(() => {
-    if (state.running || state.spin || state.modelsLoading) {
+    if (state.running || state.spin || state.modelsLoading || getAgentTelemetry().active) {
       state.tick += 1;
       schedulePaint(state, false);
     }
@@ -1314,6 +1404,7 @@ export async function runTui(): Promise<void> {
   const done = new Promise<void>((resolve) => {
     const exit = () => {
       clearInterval(spinTimer);
+      unsubAgent();
       stopKeys();
       restore();
       resolve();
@@ -1341,7 +1432,7 @@ export async function runTui(): Promise<void> {
           paint(state);
           return;
         }
-        if (key.type === "f" && key.n >= 1 && key.n <= 9) {
+        if (key.type === "f" && key.n >= 1 && key.n <= 10) {
           state.tab = key.n - 1;
           state.field = 0;
           state.flash = "";
@@ -1355,6 +1446,44 @@ export async function runTui(): Promise<void> {
         }
 
         const id = STEPS[state.tab];
+
+        if (id === "agente") {
+          const snap = getAgentTelemetry();
+          const viewRows = Math.max(4, (process.stdout.rows || 30) - 14);
+          if (key.type === "up" || key.type === "down" || key.type === "pageup" || key.type === "pagedown") {
+            state.agentFollow = false;
+            const step =
+              key.type === "pageup" || key.type === "pagedown" ? viewRows : 1;
+            const dir = key.type === "down" || key.type === "pagedown" ? step : -step;
+            const maxScroll = Math.max(0, snap.events.length - viewRows);
+            state.agentScroll = Math.max(0, Math.min(maxScroll, state.agentScroll + dir));
+            paint(state);
+            return;
+          }
+          if (key.type === "home") {
+            state.agentFollow = false;
+            state.agentScroll = 0;
+            paint(state);
+            return;
+          }
+          if (key.type === "end") {
+            state.agentFollow = true;
+            state.agentScroll = Math.max(0, snap.events.length - viewRows);
+            paint(state);
+            return;
+          }
+          if (key.type === "char" && (key.ch === "c" || key.ch === "C")) {
+            clearAgentTelemetry();
+            state.agentScroll = 0;
+            state.agentFollow = true;
+            state.flash = t("agente.cleared");
+            state.flashErr = false;
+            paint(state);
+            return;
+          }
+          paint(state);
+          return;
+        }
 
         if (key.type === "tab") {
           if (id === "credenciais") {

@@ -55,6 +55,7 @@ async function consumeAgentStream(
 ): Promise<string> {
   let text = "";
   let lastBeat = Date.now();
+  let lastSnippet = Date.now();
   const started = Date.now();
   try {
     for await (const event of run.stream()) {
@@ -68,6 +69,11 @@ async function consumeAgentStream(
       for (const block of event.message.content) {
         if (block.type === "text" && block.text) {
           text += block.text;
+          if (now - lastSnippet >= 4_000) {
+            const snippet = block.text.slice(0, 240).replace(/\s+/g, " ").trim();
+            if (snippet) opts.onLog(`agente▸ ${snippet}`);
+            lastSnippet = now;
+          }
         }
       }
     }

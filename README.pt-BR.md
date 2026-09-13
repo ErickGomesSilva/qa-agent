@@ -90,6 +90,7 @@ Sem instalador: `npm install`, `npx playwright install chromium`, `npm start`.
 | F7 | Opções | **Rodar tudo**, k6, massa, jornada, headed, grep, idioma, seguir após PRODUTO, retestar quarentena |
 | F8 | Missão | Inicia rodada + telemetria ao vivo (**R** = regenerar specs **e** forçar novo mapa/roteiro) |
 | F9 | Consulta | **1** relatórios · **2** matriz · **3** quarentena · **4** jornadas · **5** problemas |
+| F10 | Agente | Feed ao vivo do LLM (tools, texto, rounds) enquanto a F8 está NO AR · **End** segue ao vivo · **C** limpa |
 
 Enter grava a aba. Na F8, Enter inicia a rodada. Sem TTY: `qaagent --plain`. Reconfigurar: `qaagent --plain --reconfigure`.
 

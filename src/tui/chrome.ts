@@ -35,7 +35,7 @@ export function tagline(width: number): string {
 export function tabRail(steps: StepView[], active: number, width: number): string {
   const bits = steps.map((st, i) => {
     const lamp =
-      st.id === "app" || st.id === "resumos"
+      st.id === "app" || st.id === "resumos" || st.id === "agente"
         ? "▸"
         : st.done
           ? ink("◆", theme.ok)
@@ -53,13 +53,25 @@ export function stepHeading(step: StepView, isMission: boolean, width: number): 
   const status = isMission
     ? step.id === "resumos"
       ? ink(` ${t("status.reports")} `, theme.invert, theme.accent)
-      : ink(` ${t("status.app")} `, theme.invert, theme.info)
+      : step.id === "agente"
+        ? ink(` ${t("status.agente")} `, theme.invert, theme.info)
+        : ink(` ${t("status.app")} `, theme.invert, theme.info)
     : step.done
       ? ink(` ${t("status.done")} `, theme.invert, theme.accent)
       : ink(` ${t("status.pending")} `, theme.invert, theme.warn);
   const title = ink(` F${step.f}  ${step.title.toUpperCase()}`, theme.bold, theme.fg);
   const summary = ink(`  ${step.summary}`, theme.muted);
   return fill(`${title}  ${status}${summary}`, width);
+}
+
+export function styleAgentEvent(kind: string, text: string, tick: number): string {
+  if (kind === "tool") return `${ink("⬡", theme.info)} ${ink(text, theme.info)}`;
+  if (kind === "error") return `${ink("×", theme.err)} ${ink(text, theme.err)}`;
+  if (kind === "phase") return `${ink("▸", theme.accentHi)} ${ink(text, theme.accentHi, theme.bold)}`;
+  if (kind === "beat") return `${ink(spinnerFrame(tick), theme.info)} ${ink(text, theme.muted)}`;
+  if (kind === "meta") return `${ink("◆", theme.accent)} ${ink(text, theme.muted)}`;
+  if (kind === "info") return `${ink("·", theme.muted)} ${ink(text, theme.muted)}`;
+  return `${ink("›", theme.fg)} ${ink(text, theme.fg)}`;
 }
 
 export function inputField(label: string, value: string, focused: boolean, width: number, secret = false): string[] {

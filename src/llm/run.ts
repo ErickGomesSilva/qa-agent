@@ -1,4 +1,5 @@
 import { config } from "../config.ts";
+import { wrapAgentOnLog, beginAgentSession, endAgentSession } from "../agent-telemetry.ts";
 import { runCursorAgent, listCursorModels } from "./cursor.ts";
 import { listAnthropicModels, runAnthropicAgent } from "./anthropic.ts";
 import { listOpenAiModels, runOpenAiAgent } from "./openai.ts";
@@ -31,15 +32,22 @@ export async function runLlmAgent(opts: LlmAgentOpts): Promise<LlmAgentResult> {
   const model = llmModel();
   if (!key) throw new Error("API key ausente (F1)");
   if (!model) throw new Error("Modelo ausente (F2)");
-  opts.onLog(`provedor=${config.llmProvider} model=${model}`);
-  if (config.llmProvider === "cursor") return runCursorAgent(key, model, opts);
-  if (config.llmProvider === "anthropic") {
-    return runAnthropicAgent(key, resolvedBase(), model, opts);
+  const onLog = wrapAgentOnLog(opts.onLog);
+  beginAgentSession({ provider: config.llmProvider, model });
+  onLog(`provedor=${config.llmProvider} model=${model}`);
+  const next = { ...opts, onLog };
+  try {
+    if (config.llmProvider === "cursor") return await runCursorAgent(key, model, next);
+    if (config.llmProvider === "anthropic") {
+      return await runAnthropicAgent(key, resolvedBase(), model, next);
+    }
+    if (isOpenAiCompatible(config.llmProvider)) {
+      return await runOpenAiAgent(key, resolvedBase(), model, next);
+    }
+    return await runCursorAgent(key, model, next);
+  } finally {
+    endAgentSession();
   }
-  if (isOpenAiCompatible(config.llmProvider)) {
-    return runOpenAiAgent(key, resolvedBase(), model, opts);
-  }
-  return runCursorAgent(key, model, opts);
 }
 
 export async function validateLlmAuth(opts: {

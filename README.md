@@ -92,6 +92,7 @@ Manual dev setup without installer: `npm install`, `npx playwright install chrom
 | F7 | Options | **Run all**, k6, mass, tour, headed, grep, locale, continue after PRODUTO, retest quarantine |
 | F8 | Mission | Start the run + live telemetry (**R** = regenerate specs **and** force a fresh map/roteiro) |
 | F9 | Consult | **1** reports · **2** matrix · **3** quarantine · **4** journeys · **5** problems |
+| F10 | Agent | Live LLM feed (tools, text, rounds) while F8 is LIVE · **End** follow live · **C** clear |
 
 Enter saves the tab. On F8, Enter starts a run. No TTY: `qaagent --plain`. Reconfigure: `qaagent --plain --reconfigure`.
 

@@ -27,6 +27,7 @@ import { credenciaisPath, ensureWorkspace, listSpecFiles, scriptsDir } from "./w
 import { applyProject } from "./projects.ts";
 import { materializeRequisitos, looksLikeGitReqs, projectSlugFromReqInput } from "./req-source.ts";
 import { listAllReports } from "./coverage-list.ts";
+import { formatAgentElapsed, getAgentTelemetry } from "./agent-telemetry.ts";
 
 export type StepId =
   | "chave"
@@ -37,7 +38,8 @@ export type StepId =
   | "webhook"
   | "opcoes"
   | "app"
-  | "resumos";
+  | "resumos"
+  | "agente";
 
 export type EvidenceEntry = {
   at: string;
@@ -291,6 +293,24 @@ export function getSteps(): StepView[] {
       done: true,
       summary: t("step.reports", { n: listAllReports().length }),
     },
+    {
+      id: "agente",
+      f: 10,
+      title: t("tab.agente"),
+      done: true,
+      summary: (() => {
+        const a = getAgentTelemetry();
+        if (a.active) {
+          return t("step.agenteLive", {
+            phase: (a.phase || "…").slice(0, 36),
+            tools: a.toolCount,
+            elapsed: formatAgentElapsed(),
+          });
+        }
+        if (a.events.length) return t("step.agenteIdle", { n: a.events.length });
+        return t("step.agente");
+      })(),
+    },
   ];
 }
 
@@ -298,7 +318,7 @@ export function seedEvidenceFromDisk(): void {
   if (readEvidence().length) return;
   const steps = getSteps();
   for (const s of steps) {
-    if (s.id === "app" || s.id === "resumos") continue;
+    if (s.id === "app" || s.id === "resumos" || s.id === "agente") continue;
     if (!s.done && s.id !== "opcoes") continue;
     addEvidence(s.id, t("evidence.already", { summary: s.summary }));
   }
@@ -306,7 +326,7 @@ export function seedEvidenceFromDisk(): void {
 
 export function missingConfig(): string[] {
   return getSteps()
-    .filter((s) => s.id !== "app" && s.id !== "resumos" && s.id !== "webhook" && s.id !== "opcoes" && !s.done)
+    .filter((s) => s.id !== "app" && s.id !== "resumos" && s.id !== "agente" && s.id !== "webhook" && s.id !== "opcoes" && !s.done)
     .map((s) => `F${s.f} ${s.title}`);
 }
 

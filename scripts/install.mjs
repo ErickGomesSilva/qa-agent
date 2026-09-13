@@ -104,7 +104,7 @@ function main() {
   log("");
   log(pathNote);
   log("");
-  log("Primeira vez: qaagent  →  F1 chave, F2 modelo, F3 requisitos, F4 URL, F5 login, F8 rodada, F9 consulta");
+  log("Primeira vez: qaagent  →  F1 chave, F2 modelo, F3 requisitos, F4 URL, F5 login, F8 rodada, F10 agente, F9 consulta");
   log("");
   log("Desinstalar só o comando: node desinstalar.mjs  (não apaga .env nem data/)");
 }
