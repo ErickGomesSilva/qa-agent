@@ -8,7 +8,7 @@ export function printCliHelp(): void {
   console.log(`QA Agent
 
 Uso:
-  qaagent                  TUI (F1–F9)
+  qaagent                  TUI (F1–F10)
   qaagent --plain          Assistente em texto
   qaagent --help           Esta ajuda
 
