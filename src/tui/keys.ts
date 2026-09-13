@@ -9,6 +9,10 @@ export type Key =
   | { type: "right" }
   | { type: "up" }
   | { type: "down" }
+  | { type: "pageup" }
+  | { type: "pagedown" }
+  | { type: "home" }
+  | { type: "end" }
   | { type: "ctrl"; ch: string };
 
 const F_CSI: Record<string, number> = {
@@ -94,8 +98,13 @@ export function attachKeys(onKey: (key: Key) => void): () => void {
         const m = buf.match(/^\x1b\[(\d+)~/);
         if (m) {
           buf = buf.slice(m[0].length);
-          const n = F_CSI[m[1] ?? ""];
-          if (n) emit({ type: "f", n });
+          const code = m[1] ?? "";
+          const f = F_CSI[code];
+          if (f) emit({ type: "f", n: f });
+          else if (code === "5") emit({ type: "pageup" });
+          else if (code === "6") emit({ type: "pagedown" });
+          else if (code === "1" || code === "7") emit({ type: "home" });
+          else if (code === "4" || code === "8") emit({ type: "end" });
           continue;
         }
         if (buf.length >= 3) {
@@ -105,6 +114,8 @@ export function attachKeys(onKey: (key: Key) => void): () => void {
           else if (t === "B") emit({ type: "down" });
           else if (t === "C") emit({ type: "right" });
           else if (t === "D") emit({ type: "left" });
+          else if (t === "H") emit({ type: "home" });
+          else if (t === "F") emit({ type: "end" });
           else if (t === "Z") emit({ type: "tab", shift: true });
           continue;
         }

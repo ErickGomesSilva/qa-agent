@@ -247,13 +247,13 @@ function seedState(): State {
 
 function pushRunLog(state: State, line: string): void {
   state.log.push(line);
-  if (state.log.length > 2500) state.log.splice(0, state.log.length - 2500);
+  if (state.log.length > 600) state.log.splice(0, state.log.length - 600);
   state.runTelemetry = applyRunTelemetry(state.runTelemetry, line);
   if (isScriptNotice(line)) {
     state.flash = line;
     state.flashErr = false;
   }
-  schedulePaint(state);
+  schedulePaint(state, false);
 }
 
 function schedulePaint(state: State, immediate = false): void {
@@ -269,7 +269,7 @@ function schedulePaint(state: State, immediate = false): void {
   paintTimer = setTimeout(() => {
     paintTimer = undefined;
     paintNow(state);
-  }, 120);
+  }, 80);
 }
 
 function evidenceBlock(step: StepId, width: number): string[] {
@@ -364,8 +364,10 @@ function appendRunSummary(state: State, run: OrchestratorRun): void {
 
 function renderLogPanel(state: State, width: number, height: number): string[] {
   const inner = Math.max(20, width - 2);
+  const maxRaw = Math.max(40, (height - 2) * 3);
+  const rawTail = state.log.length > maxRaw ? state.log.slice(-maxRaw) : state.log;
   const wrapped: string[] = [];
-  for (const raw of coalesceLogLines(state.log)) {
+  for (const raw of coalesceLogLines(rawTail)) {
     const parts = wrapVisible(raw, Math.max(8, inner - 3));
     parts.forEach((w, i) => {
       wrapped.push(i === 0 ? styleLogLine(w, state.tick) : ink(`  ${w}`, theme.muted));
@@ -722,7 +724,7 @@ function render(state: State): string {
       ? renderAppTab(state, width, bodyRows)
       : current.id === "resumos"
         ? renderResumosTab(state, width, bodyRows)
-        : tabBody(state, current.id, width);
+        : tabBody(state, current.id, width, bodyRows);
   const padded = [...body];
   while (padded.length < bodyRows) padded.push("");
 
@@ -767,7 +769,7 @@ function webhookFieldCount(): number {
   return 2;
 }
 
-function tabBody(state: State, id: StepId, width: number): string[] {
+function tabBody(state: State, id: StepId, width: number, bodyRows: number): string[] {
   const lines: string[] = [];
   const pushMuted = (s: string) => {
     for (const w of wrapVisible(s, Math.max(12, width - 2))) lines.push(`  ${ink(w, theme.muted)}`);
@@ -817,27 +819,40 @@ function tabBody(state: State, id: StepId, width: number): string[] {
     } else if (!state.models.length) {
       lines.push(`  ${ink("▸", theme.accent)} ${ink(t("modelo.pressEnter"), theme.fg)}`);
     } else {
-      const listH = Math.max(8, (process.stdout.rows || 30) - 14);
+      // Reserva: cabeçalho já em `lines` + contador + dica; evita cortar o item selecionado
+      const footerHint = 1;
+      const countLine = 1;
+      const listH = Math.max(4, bodyRows - lines.length - countLine - footerHint);
       const half = Math.floor(listH / 2);
       let start = Math.max(0, state.modelIndex - half);
       if (start + listH > state.models.length) start = Math.max(0, state.models.length - listH);
       const slice = state.models.slice(start, start + listH);
-      lines.push(`  ${ink(`${state.modelIndex + 1} / ${state.models.length}`, theme.muted)}`);
+      const moreAbove = start > 0 ? ` ↑${start}` : "";
+      const moreBelow =
+        start + slice.length < state.models.length
+          ? ` ↓${state.models.length - (start + slice.length)}`
+          : "";
+      lines.push(
+        `  ${ink(`${state.modelIndex + 1}/${state.models.length}${moreAbove}${moreBelow}  ${t("modelo.scrollHint")}`, theme.muted)}`,
+      );
       slice.forEach((m, i) => {
         const abs = start + i;
         const label = m.displayName && m.displayName !== m.id ? `${m.id}  ${m.displayName}` : m.id;
         lines.push(modelRow(label, abs === state.modelIndex, Math.max(24, width - 2)));
       });
     }
-    lines.push("");
-    const ev = evidenceFor(id, 2);
-    if (ev.length) {
-      const rows = ev.flatMap((e) =>
-        wrapVisible(`  ${fmtWhen(e.at)}  ${e.text}`, width - 4).map((w) => ink(w, theme.muted)),
-      );
-      lines.push(...evidencePanel(t("evidence.title"), rows, t("evidence.empty"), width));
+    // Lista longa: não empurrar evidência (ela roubava altura e o clip cortava modelos)
+    if (state.models.length <= 8) {
+      lines.push("");
+      const ev = evidenceFor(id, 2);
+      if (ev.length) {
+        const rows = ev.flatMap((e) =>
+          wrapVisible(`  ${fmtWhen(e.at)}  ${e.text}`, width - 4).map((w) => ink(w, theme.muted)),
+        );
+        lines.push(...evidencePanel(t("evidence.title"), rows, t("evidence.empty"), width));
+      }
     }
-    return lines;
+    return lines.slice(0, bodyRows);
   }
 
   if (id === "requisitos") {
@@ -1037,7 +1052,7 @@ function paintNow(state: State): void {
   process.stdout.write("\x1b[H\x1b[J" + render(state));
 }
 
-function paint(state: State, immediate = false): void {
+function paint(state: State, immediate = true): void {
   schedulePaint(state, immediate);
 }
 
@@ -1292,10 +1307,9 @@ export async function runTui(): Promise<void> {
   const spinTimer = setInterval(() => {
     if (state.running || state.spin || state.modelsLoading) {
       state.tick += 1;
-      if (state.running) schedulePaint(state);
-      else paint(state, true);
+      schedulePaint(state, false);
     }
-  }, 500);
+  }, 400);
 
   const done = new Promise<void>((resolve) => {
     const exit = () => {
@@ -1513,12 +1527,25 @@ export async function runTui(): Promise<void> {
           return;
         }
 
-        if (id === "modelo" && (key.type === "up" || key.type === "down")) {
+        if (
+          id === "modelo" &&
+          (key.type === "up" ||
+            key.type === "down" ||
+            key.type === "pageup" ||
+            key.type === "pagedown" ||
+            key.type === "home" ||
+            key.type === "end")
+        ) {
           if (state.models.length) {
-            state.modelIndex = Math.max(
-              0,
-              Math.min(state.models.length - 1, state.modelIndex + (key.type === "down" ? 1 : -1)),
-            );
+            const page = Math.max(5, Math.floor(((process.stdout.rows || 30) - 16) * 0.75));
+            let next = state.modelIndex;
+            if (key.type === "up") next -= 1;
+            else if (key.type === "down") next += 1;
+            else if (key.type === "pageup") next -= page;
+            else if (key.type === "pagedown") next += page;
+            else if (key.type === "home") next = 0;
+            else if (key.type === "end") next = state.models.length - 1;
+            state.modelIndex = Math.max(0, Math.min(state.models.length - 1, next));
           }
           paint(state);
           return;
