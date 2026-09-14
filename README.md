@@ -94,6 +94,8 @@ Manual dev setup without installer: `npm install`, `npx playwright install chrom
 | F9 | Consult | **1** reports · **2** matrix · **3** quarantine · **4** journeys · **5** problems |
 | F10 | Agent | Live LLM feed (tools, text, rounds) while F8 is LIVE · **End** follow live · **C** clear |
 
+When a run ends, F8 telemetry shows **How to resume** (also `RETOMAR.md` / F9).
+
 Enter saves the tab. On F8, Enter starts a run. No TTY: `qaagent --plain`. Reconfigure: `qaagent --plain --reconfigure`.
 
 F3 accepts a **local folder** or a **Git URL**: GitHub, Gitea/Forgejo/Codeberg (`/src/branch/…`), Azure DevOps (`_git/…?path=`), GitLab (`/-/tree/…`), Bitbucket, or `https://host/repo.git docs/requisitos`. Private repo: **Tab** to the second F3 field and paste the token — the tool stores `QA_GIT_TOKEN` in `.env` (do not put the PAT in the URL). The clone lives in `data/cache/git/` and is refreshed each run. **Git must be on PATH.**
@@ -134,7 +136,7 @@ qaagent-clean
 3. Join requirements ∩ map ∩ F5 labels → `scripts/falhas/ROTEIRO.json`
 4. **Generate** reads roteiro + map + requirements (unless specs already exist)
 5. Audit, mass, Playwright, triage
-6. Reports: coverage + **`PROBLEMAS.md`**. On a **fatal** interrupt also writes `FALHA-FATAL.md`. **Pause:** press **P** or **Esc** during a run to stop at the next checkpoint and write `CONTINUAR.md`; Enter on F8 resumes (skips logic/tour per the guide). Esc while idle still quits the TUI.
+6. Reports: coverage + **`PROBLEMAS.md`**. On a **fatal** interrupt also writes `FALHA-FATAL.md`. Every terminal outcome writes **`RETOMAR.md`** and prints a **How to resume** block in telemetry (what to reuse + next Enter, usually without **R**). **Pause:** press **P** or **Esc** during a run to stop at the next checkpoint and write `CONTINUAR.md`; Enter on F8 resumes (skips logic/tour per the guide). Esc while idle still quits the TUI.
 
 ### Reusing map and roteiro
 

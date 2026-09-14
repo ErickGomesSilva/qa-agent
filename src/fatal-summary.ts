@@ -124,7 +124,34 @@ function whereStopped(opts: {
   return `Fluxo interrompido na fase «${opts.lastPhase}». Motivo: ${opts.error}`;
 }
 
-function nextSteps(opts: { error: string; rounds: number; completed: string[] }): string[] {
+import { detectResumeArtifacts, buildResumeGuide } from "./resume-guide.ts";
+
+function nextSteps(opts: {
+  error: string;
+  rounds: number;
+  completed: string[];
+  run?: Pick<
+    OrchestratorRun,
+    | "id"
+    | "status"
+    | "error"
+    | "log"
+    | "rounds"
+    | "triage"
+    | "playwright"
+    | "stuckCases"
+    | "productFindings"
+    | "requisitosPath"
+    | "projectPath"
+  > & { autoResumeOnTeste?: boolean };
+}): string[] {
+  if (opts.run) {
+    const guide = buildResumeGuide(
+      { ...opts.run, status: "error", error: opts.error },
+      detectResumeArtifacts(),
+    );
+    return [...guide.actions, ...guide.reuse.slice(0, 2).map((r) => `Reaproveita: ${r}`)];
+  }
   const steps: string[] = [];
   const err = opts.error.toLowerCase();
   if (/run do agente falhou|agente cursor/i.test(opts.error)) {
@@ -162,7 +189,7 @@ export function buildFatalSummary(run: Pick<
     agentSeconds,
     cursorRunId,
   });
-  const next = nextSteps({ error, rounds: run.rounds, completed });
+  const next = nextSteps({ error, rounds: run.rounds, completed, run });
   const logTail = run.log.slice(-8).map(stripStamp);
   const projectSlug = projectSlugFromPath(run.projectPath || run.requisitosPath);
   const mdPath = opts?.mdPath ?? "scripts/falhas/FALHA-FATAL.md";
@@ -240,7 +267,7 @@ export function formatFatalSummaryTerminal(summary: FatalSummary): string[] {
     `Fase: ${summary.lastPhase}`,
     `Erro: ${summary.error.slice(0, 200)}`,
     `Concluído: ${summary.completed.length ? summary.completed.join(" · ") : "(nada marcado)"}`,
-    ...summary.nextSteps.slice(0, 3).map((s) => `→ ${s}`),
+    ...summary.nextSteps.slice(0, 5).map((s) => `→ ${s}`),
     `Arquivo: ${summary.mdPath.replace(/\\/g, "/")}`,
   ];
 }

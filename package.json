@@ -1,6 +1,6 @@
 {
   "name": "qaagent",
-  "version": "1.6.4",
+  "version": "1.6.5",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -30,7 +30,7 @@
     "security-check": "node scripts/security-check.mjs",
     "prepare": "node scripts/setup-git-hooks.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/roteiro.test.ts src/roteiro-cache.test.ts src/impediments.test.ts src/projects.test.ts src/req-source.test.ts src/fatal-summary.test.ts src/pause-guide.test.ts src/playwright-evidence.test.ts",
+    "test": "tsx --test src/roteiro.test.ts src/roteiro-cache.test.ts src/impediments.test.ts src/projects.test.ts src/req-source.test.ts src/fatal-summary.test.ts src/pause-guide.test.ts src/playwright-evidence.test.ts src/resume-guide.test.ts",
     "audit": "tsx src/audit-cli.ts",
     "reports": "tsx src/reports-cli.ts",
     "k6": "tsx src/k6-cli.ts",

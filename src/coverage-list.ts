@@ -13,6 +13,7 @@ export type ReportKind =
   | "problemas"
   | "falha-fatal"
   | "continuar"
+  | "retomar"
   | "aviso-ambiente";
 
 export type ReportEntry = {
@@ -90,6 +91,7 @@ function readSpecial(dir: string, fileName: string): ReportEntry | undefined {
   if (fileName === "PROBLEMAS.md") return readNamedMd(dir, fileName, "problemas", "problemas");
   if (fileName === "FALHA-FATAL.md") return readNamedMd(dir, fileName, "falha-fatal", "falha-fatal");
   if (fileName === "CONTINUAR.md") return readNamedMd(dir, fileName, "continuar", "continuar");
+  if (fileName === "RETOMAR.md") return readNamedMd(dir, fileName, "retomar", "retomar");
   if (fileName === "AVISO-AMBIENTE.md") return readNamedMd(dir, fileName, "aviso-ambiente", "aviso-ambiente");
   return undefined;
 }
@@ -158,6 +160,7 @@ export function formatReportKind(entry: ReportEntry): string {
   if (entry.kind === "problemas") return "problemas";
   if (entry.kind === "falha-fatal") return "falha-fatal";
   if (entry.kind === "continuar") return "continuar";
+  if (entry.kind === "retomar") return "retomar";
   if (entry.kind === "aviso-ambiente") return "aviso-ambiente";
   return "cobertura";
 }

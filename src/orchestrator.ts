@@ -21,6 +21,7 @@ import { runUserTour } from "./user-tour.ts";
 import { runPlaywright } from "./playwright-runner.ts";
 import { runK6, shouldRunK6 } from "./k6-runner.ts";
 import { formatFatalSummaryTerminal, writeFatalSummary } from "./fatal-summary.ts";
+import { emitResumeGuide } from "./resume-guide.ts";
 import {
   clearContinuar,
   formatContinuarTerminal,
@@ -157,6 +158,11 @@ function finishUserPause(run: OrchestratorRun, log: (line: string) => void): voi
   } catch (err) {
     log(`aviso: nao gravou CONTINUAR.md (${err instanceof Error ? err.message : String(err)})`);
   }
+  try {
+    emitResumeGuide(run, log);
+  } catch (err) {
+    log(`aviso: nao gravou RETOMAR.md (${err instanceof Error ? err.message : String(err)})`);
+  }
   saveRun(run);
 }
 
@@ -287,6 +293,11 @@ function recordFatal(run: OrchestratorRun, log: (line: string) => void, errMsg: 
     log(
       `aviso: nao foi possivel gravar FALHA-FATAL.md (${summaryErr instanceof Error ? summaryErr.message : String(summaryErr)})`,
     );
+  }
+  try {
+    emitResumeGuide(run, log);
+  } catch (err) {
+    log(`aviso: nao gravou RETOMAR.md (${err instanceof Error ? err.message : String(err)})`);
   }
   saveRun(run);
 }
@@ -707,6 +718,11 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
     }
     clearContinuar();
     if (continuar) log("CONTINUAR.md removido — retomada concluída");
+    try {
+      emitResumeGuide(run, log);
+    } catch (err) {
+      log(`aviso: nao gravou RETOMAR.md (${err instanceof Error ? err.message : String(err)})`);
+    }
     saveRun(run);
   };
 
@@ -841,6 +857,11 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
     persistArtifacts(pw);
     log(`suíte permanece parada (status=${run.status})`);
     await finalizeCoverageReport(run, audit, log, pw);
+    try {
+      emitResumeGuide(run, log);
+    } catch (err) {
+      log(`aviso: nao gravou RETOMAR.md (${err instanceof Error ? err.message : String(err)})`);
+    }
     return;
   }
 

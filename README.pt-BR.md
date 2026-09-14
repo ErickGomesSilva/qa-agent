@@ -92,6 +92,8 @@ Sem instalador: `npm install`, `npx playwright install chromium`, `npm start`.
 | F9 | Consulta | **1** relatórios · **2** matriz · **3** quarentena · **4** jornadas · **5** problemas |
 | F10 | Agente | Feed ao vivo do LLM (tools, texto, rounds) enquanto a F8 está NO AR · **End** segue ao vivo · **C** limpa |
 
+No fim de cada rodada a telemetria da F8 mostra **Como retomar** (também em `RETOMAR.md` / F9).
+
 Enter grava a aba. Na F8, Enter inicia a rodada. Sem TTY: `qaagent --plain`. Reconfigurar: `qaagent --plain --reconfigure`.
 
 Na F3 vale **pasta local** ou **URL Git**: GitHub, Gitea/Forgejo/Codeberg (`/src/branch/…`), Azure DevOps (`_git/…?path=`), GitLab (`/-/tree/…`), Bitbucket, ou `https://host/repo.git docs/requisitos`. Repo privado: **Tab** no segundo campo da F3 e cole o token — a ferramenta grava `QA_GIT_TOKEN` no `.env` (não cole o PAT na URL). O clone fica em `data/cache/git/` e atualiza a cada missão. **Git precisa estar no PATH.**
@@ -163,7 +165,8 @@ Na missão completa a ordem é:
 5. Auditoria, massa, Playwright, triagem (como antes)
 6. Relatórios: `COBERTURA-RESUMO-*.md` + **`PROBLEMAS.md`** — bloqueios (massa/perfil), falhas Playwright com erro, produto, HTTP 4xx do mapa, CAs sem spec, stubs. F9 → **5 Problemas**.
 7. Em **erro fatal** (agente Cursor caiu, limite de loops, etc.): grava `scripts/falhas/FALHA-FATAL.md` (+ `.json`) com onde parou, marcos concluídos e próximos passos — e imprime o resumo no log da F8 / CLI.
-8. **Pausa:** durante a rodada, **P** ou **Esc** pede pausa no próximo checkpoint e grava `scripts/falhas/CONTINUAR.md` (guia de retomada). Enter na F8 retoma (pula lógica/jornada conforme o guia). Esc com a rodada **parada** ainda sai do TUI; **Ctrl+C** encerra o processo.
+8. Em **qualquer desfecho** (fatal, pausa, triagem TESTE/PRODUTO/MASSA/AMBIENTE, suíte ok…): grava `scripts/falhas/RETOMAR.md` e imprime na telemetria o bloco **Como retomar** — o que já pode reaproveitar (mapa/roteiro/specs) e o que fazer no próximo Enter (quase sempre **sem R**).
+9. **Pausa:** durante a rodada, **P** ou **Esc** pede pausa no próximo checkpoint e grava `scripts/falhas/CONTINUAR.md` (guia de retomada). Enter na F8 retoma (pula lógica/jornada conforme o guia). Esc com a rodada **parada** ainda sai do TUI; **Ctrl+C** encerra o processo.
 
 ### Reuso de mapa e roteiro
 

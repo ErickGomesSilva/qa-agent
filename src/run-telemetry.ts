@@ -104,6 +104,12 @@ export function applyRunTelemetry(prev: RunTelemetry, line: string): RunTelemetr
   if (/NÃO FINALIZADO|NAO FINALIZADO/i.test(trimmed)) {
     return { phase: "Nao finalizado", detail: trimmed };
   }
+  if (/^━━ Como retomar/i.test(trimmed)) {
+    return { phase: "Como retomar", detail: "Próximos passos na telemetria" };
+  }
+  if (/^→\s+/u.test(trimmed) && /F8|Enter|SEM R|apague CONTINUAR|npx playwright|F9|F7|F10/i.test(trimmed)) {
+    return { phase: "Como retomar", detail: trimmed.replace(/^→\s+/u, "").slice(0, 120) };
+  }
 
   return prev;
 }

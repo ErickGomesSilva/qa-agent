@@ -112,6 +112,15 @@ export function evidencePanel(title: string, rows: string[], empty: string, widt
 export function styleLogLine(raw: string, tick: number): string {
   const notice = isScriptNotice(raw);
   if (/^━━|^──/.test(raw)) return ink(` ${raw.replace(/[━─]/g, "━")} `, theme.bold, theme.accentHi);
+  if (/^→\s+/u.test(raw) || /^Como retomar/i.test(raw)) {
+    return `${ink("→", theme.warn)} ${ink(raw.replace(/^→\s*/u, ""), theme.warn)}`;
+  }
+  if (/^×\s+/u.test(raw) && /regenerate|Não aperte|Nao aperte/i.test(raw)) {
+    return `${ink("×", theme.err)} ${ink(raw.replace(/^×\s*/u, ""), theme.muted)}`;
+  }
+  if (/^Reaproveita:/i.test(raw)) {
+    return `${ink("◆", theme.ok)} ${ink(raw, theme.fg)}`;
+  }
   if (notice) return `${ink("◆", theme.ok)} ${ink(raw, theme.fg)}`;
   if (/NÃO FINALIZADO|NAO FINALIZADO|★/.test(raw)) {
     return `${ink("★", theme.warn)} ${ink(raw, theme.warn, theme.bold)}`;

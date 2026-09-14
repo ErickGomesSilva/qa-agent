@@ -10,6 +10,7 @@ import type { OrchestratorRun } from "../types.ts";
 import { startRun, requestCancel, isCancelRequested } from "../orchestrator.ts";
 import { activeRun } from "../store.ts";
 import { loadContinuar } from "../pause-guide.ts";
+import { buildResumeGuide, detectResumeArtifacts } from "../resume-guide.ts";
 import { applyRunTelemetry, formatElapsed, type RunTelemetry } from "../run-telemetry.ts";
 import {
   clearAgentTelemetry,
@@ -374,6 +375,16 @@ function appendRunSummary(state: State, run: OrchestratorRun): void {
   if (run.fatalSummaryPath) {
     state.log.push(t("app.fatalSummary", { path: run.fatalSummaryPath }));
   }
+  try {
+    const guide = buildResumeGuide(run, detectResumeArtifacts());
+    state.log.push(t("app.resumeTitle", { title: guide.title }));
+    for (const a of guide.actions.slice(0, 4)) {
+      state.log.push(t("app.resumeAction", { action: a }));
+    }
+    state.log.push(t("app.resumeFile"));
+  } catch {
+    /* ignore */
+  }
 }
 
 function renderLogPanel(state: State, width: number, height: number): string[] {
@@ -464,6 +475,19 @@ function boardLines(state: State, width: number): string[] {
     const cont = loadContinuar();
     if (cont) {
       lines.push(ink(`◆ ${t("app.continuarPending", { phase: cont.lastPhase.slice(0, 50) })}`, theme.warn));
+    } else if (state.lastRun) {
+      try {
+        const guide = buildResumeGuide(state.lastRun, detectResumeArtifacts());
+        lines.push(ink(`◆ ${guide.title}`, theme.warn));
+        for (const a of guide.actions.slice(0, 2)) {
+          for (const w of wrapVisible(`→ ${a}`, Math.max(12, width - 2))) {
+            lines.push(ink(`  ${w}`, theme.muted));
+          }
+        }
+        lines.push(ink(`  ${t("app.resumeHintFile")}`, theme.info));
+      } catch {
+        lines.push(ink(`◆ ${t("app.ready")}`, theme.ok));
+      }
     } else {
       lines.push(ink(`◆ ${t("app.ready")}`, theme.ok));
     }
@@ -482,6 +506,7 @@ function listRelatoriosReports(reports: ReportEntry[]): ReportEntry[] {
       r.kind === "k6" ||
       r.kind === "falha-fatal" ||
       r.kind === "continuar" ||
+      r.kind === "retomar" ||
       r.kind === "aviso-ambiente",
   );
 }
