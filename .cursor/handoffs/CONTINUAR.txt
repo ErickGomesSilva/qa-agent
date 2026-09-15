@@ -1,0 +1,13 @@
+Continuar a partir do handoff pendente.
+
+Leia @.cursor/handoffs/PENDING.md e o skill continuidade-handoff.
+Não reinicie do zero: o produto já está no GitHub main (aac6579). Não retestar Portal-Rural. Não commitar data/, .env, credenciais, .cursor/handoffs/.
+Ao se aproximar de ~80% de contexto outra vez, gere novo handoff.
+
+Implementações já feitas (resumo):
+- Mapa Playwright por login F5 antes do generate; ROTEIRO.json; loginAs; heading ≠ consulta; HTTP 401/403; escopo geral/focado; PROBLEMAS.md; F9-5. Commit a096e24.
+- data/projects/<slug>/; qaagent --clean; --project/--projects/--help. Commit c0e6943. Docs 7777669.
+- F3 pasta local ou URL Git (GitHub, Gitea, Azure DevOps, GitLab, Bitbucket, SSH). Clone data/cache/git/. Commit 9742412.
+- Token Git na F3 (Tab) → QA_GIT_TOKEN no .env da ferramenta; Enter vazio mantém. Commit aac6579. Instalado neste clone (bin no PATH).
+- Discord só em PRODUTO = bug confirmado na aplicação (não TESTE/MASSA/AMBIENTE/INCONCLUSIVO).
+- Join do roteiro ainda é heurístico (sem LLM). Wiki: https://github.com/ErickGomesSilva/qa-agent/wiki

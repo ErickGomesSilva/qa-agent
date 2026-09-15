@@ -1,5 +1,6 @@
 import { isScriptNotice, t, type Locale } from "../i18n.ts";
 import type { StepView } from "../setup.ts";
+import { getAgentTelemetry } from "../agent-telemetry.ts";
 import {
   fill,
   frame,
@@ -50,15 +51,22 @@ export function tabRail(steps: StepView[], active: number, width: number): strin
 }
 
 export function stepHeading(step: StepView, isMission: boolean, width: number): string {
-  const status = isMission
-    ? step.id === "resumos"
-      ? ink(` ${t("status.reports")} `, theme.invert, theme.accent)
-      : step.id === "agente"
-        ? ink(` ${t("status.agente")} `, theme.invert, theme.info)
-        : ink(` ${t("status.app")} `, theme.invert, theme.info)
-    : step.done
+  let status: string;
+  if (isMission) {
+    if (step.id === "resumos") {
+      status = ink(` ${t("status.reports")} `, theme.invert, theme.accent);
+    } else if (step.id === "agente") {
+      const snap = getAgentTelemetry();
+      const label = snap.active ? t("agente.sessionActive") : t("agente.sessionEnded");
+      status = ink(` ${label} `, theme.invert, snap.active ? theme.ok : theme.muted);
+    } else {
+      status = ink(` ${t("status.app")} `, theme.invert, theme.info);
+    }
+  } else {
+    status = step.done
       ? ink(` ${t("status.done")} `, theme.invert, theme.accent)
       : ink(` ${t("status.pending")} `, theme.invert, theme.warn);
+  }
   const title = ink(` F${step.f}  ${step.title.toUpperCase()}`, theme.bold, theme.fg);
   const summary = ink(`  ${step.summary}`, theme.muted);
   return fill(`${title}  ${status}${summary}`, width);
@@ -70,7 +78,13 @@ export function styleAgentEvent(kind: string, text: string, tick: number): strin
   if (kind === "phase") return `${ink("▸", theme.accentHi)} ${ink(text, theme.accentHi, theme.bold)}`;
   if (kind === "beat") return `${ink(spinnerFrame(tick), theme.info)} ${ink(text, theme.muted)}`;
   if (kind === "meta") return `${ink("◆", theme.accent)} ${ink(text, theme.muted)}`;
-  if (kind === "info") return `${ink("·", theme.muted)} ${ink(text, theme.muted)}`;
+  if (kind === "info") {
+    // Destaque para encerramento de sessão
+    if (/✓\s*sessão agente encerrada/i.test(text)) {
+      return `${ink("✓", theme.ok)} ${ink(text.replace(/^✓\s*/, ""), theme.ok)}`;
+    }
+    return `${ink("·", theme.muted)} ${ink(text, theme.muted)}`;
+  }
   return `${ink("›", theme.fg)} ${ink(text, theme.fg)}`;
 }
 

@@ -764,6 +764,12 @@ function renderAgenteTab(state: State, width: number, rows: number): string[] {
     ),
   );
   lines.push(
+    ink(
+      `  ${snap.active ? t("agente.sessionActive") : t("agente.sessionEnded")}`,
+      snap.active ? theme.ok : theme.muted,
+    ),
+  );
+  lines.push(
     ink(`  ${state.agentFollow ? t("agente.followOn") : t("agente.followOff")}`, theme.muted),
   );
   lines.push("");

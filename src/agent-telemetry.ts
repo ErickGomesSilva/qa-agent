@@ -74,8 +74,18 @@ export function beginAgentSession(opts?: { provider?: string; model?: string; ph
 
 export function endAgentSession(): void {
   active = false;
-  lastAt = Date.now();
-  pushRaw("info", "sessão agente encerrada");
+  const now = Date.now();
+  lastAt = now;
+  const duration = startedAt ? formatDuration(now - startedAt) : "—";
+  pushRaw("info", `✓ sessão agente encerrada (${duration})`);
+}
+
+function formatDuration(ms: number): string {
+  const sec = Math.max(0, Math.round(ms / 1000));
+  if (sec < 60) return `${sec}s`;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}m ${s}s`;
 }
 
 function pushRaw(kind: AgentEventKind, text: string): void {
