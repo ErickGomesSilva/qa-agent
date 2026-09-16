@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { createPlaneAdapterForTests } from "./plane-adapter.ts";
+import { createPlaneAdapterForTests, mapItemTypeFromTitle } from "./plane-adapter.ts";
 import type { McpToolCaller } from "./mcp-client.ts";
 
 /** Fake determinístico do MCP do Plane — sem rede, sem servidor real. */
@@ -100,6 +100,50 @@ describe("PlaneAdapter", () => {
     });
     assert.equal(issue.key, "BUG-1");
     assert.equal(issue.url, "https://plane/issue-1");
+  });
+
+  it("sem type nativo (workspace sem Work Item Types), classifica por convenção de título — caso real do projeto CERNOVA", async () => {
+    const caller = fakeCaller({
+      workitem: () => ({
+        items: [
+          { id: "e1", identifier: "CERNOVA-302", name: "[QA] Épico: Testes E2E — cenários dos requisitos" },
+          { id: "f1", identifier: "CERNOVA-130", name: "[Portal Rural] Feature: IsolamentoDeCliente" },
+          { id: "u1", identifier: "CERNOVA-89", name: "[V1] US_LIV_001 — Gerar Livro Caixa preparado" },
+          { id: "x1", identifier: "CERNOVA-453", name: "[DEV] Atualizar READMEs" },
+        ],
+      }),
+    });
+    const adapter = createPlaneAdapterForTests(caller);
+    const { items } = await adapter.listWorkItems({ projectId: "proj-1" });
+    assert.equal(items.find((i) => i.key === "CERNOVA-302")!.type, "epic");
+    assert.equal(items.find((i) => i.key === "CERNOVA-130")!.type, "feature");
+    assert.equal(items.find((i) => i.key === "CERNOVA-89")!.type, "user-story");
+    // Sem "Épico:"/"Feature:"/"US_" no título, cai no default (user-story) — filtragem por label
+    // (não por tipo) é quem decide se este item conta como requisito.
+    assert.equal(items.find((i) => i.key === "CERNOVA-453")!.type, "user-story");
+  });
+
+  it("mapItemTypeFromTitle reconhece convenções de título reais", () => {
+    assert.equal(mapItemTypeFromTitle("[QA] Épico: Orientação por IA"), "epic");
+    assert.equal(mapItemTypeFromTitle("[V1] Feature: RBAC"), "feature");
+    assert.equal(mapItemTypeFromTitle("[QA] US_LIV_001 — Gerar lançamento"), "user-story");
+  });
+
+  it("resolve labels de id para nome usando a tool 'label'", async () => {
+    const caller = fakeCaller({
+      workitem: () => ({
+        items: [{ id: "u1", identifier: "CERNOVA-89", name: "US X", labels: ["lbl-req", "lbl-cernova"] }],
+      }),
+      label: () => ({
+        results: [
+          { id: "lbl-req", name: "Requisitos" },
+          { id: "lbl-cernova", name: "Cernova" },
+        ],
+      }),
+    });
+    const adapter = createPlaneAdapterForTests(caller);
+    const { items } = await adapter.listWorkItems({ projectId: "proj-1" });
+    assert.deepEqual(items[0]!.labels.sort(), ["Cernova", "Requisitos"]);
   });
 
   it("resposta inválida vira McpError invalid_response, não quebra silenciosamente", async () => {

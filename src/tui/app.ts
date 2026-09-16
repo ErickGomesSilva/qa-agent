@@ -49,10 +49,18 @@ import {
   saveOptions,
   saveRequisitos,
   gitTokenConfigured,
+  listMcpProjects,
+  listMcpServerNames,
+  saveRequisitosLocalOrGit,
+  saveRequisitosMcp,
   saveUrl,
   saveWebhook,
   seedEvidenceFromDisk,
+  validateMcpRequirementSource,
 } from "../setup.ts";
+import type { RequirementSourceKind } from "../requirements/types.ts";
+import type { EpicPreview } from "../requirements/mcp-adapter.ts";
+import { inferRequirementSourceKind } from "../requirements/source.ts";
 import { detectWebhookProvider, webhookProviderLabel, type WebhookProvider } from "../webhook.ts";
 import { listSpecFiles } from "../workspace.ts";
 import { formatReportKind, formatReportStats, listAllReports, type ReportEntry } from "../coverage-list.ts";
@@ -137,8 +145,12 @@ type State = {
     provider: LlmProvider;
     llmBaseUrl: string;
     chave: string;
+    reqSourceKind: RequirementSourceKind;
     requisitos: string;
     gitToken: string;
+    mcpServer: string;
+    mcpProjectId: string;
+    mcpProjectName: string;
     url: string;
     authKind: AuthKind;
     login: string;
@@ -180,6 +192,12 @@ type State = {
   runTelemetry: RunTelemetry;
   agentScroll: number;
   agentFollow: boolean;
+  mcpProjects: { id: string; name: string }[];
+  mcpProjectIndex: number;
+  mcpLoading: boolean;
+  mcpEpicos: EpicPreview[];
+  mcpTotals?: { fetched: number; considered: number; dropped: number };
+  mcpValidated: boolean;
 };
 
 let paintTimer: ReturnType<typeof setTimeout> | undefined;
@@ -216,8 +234,12 @@ function seedState(): State {
       provider: (s.llmProvider ?? config.llmProvider ?? "cursor") as LlmProvider,
       llmBaseUrl: s.llmBaseUrl ?? config.llmBaseUrl ?? "https://api.openai.com/v1",
       chave: "",
-      requisitos: s.requisitosPath ?? "",
+      reqSourceKind: s.requirementSourceKind ?? inferRequirementSourceKind(s.requisitosPath),
+      requisitos: s.requirementSourceKind === "mcp" ? "" : (s.requisitosPath ?? ""),
       gitToken: "",
+      mcpServer: s.mcpRequirementSource?.server ?? "",
+      mcpProjectId: s.mcpRequirementSource?.projectId ?? "",
+      mcpProjectName: "",
       url: s.baseUrl ?? "",
       authKind: first?.authKind ?? "email",
       login: first?.login ?? "",
@@ -256,6 +278,11 @@ function seedState(): State {
     runTelemetry: { phase: "", detail: "" },
     agentScroll: 0,
     agentFollow: true,
+    mcpProjects: [],
+    mcpProjectIndex: 0,
+    mcpLoading: false,
+    mcpEpicos: [],
+    mcpValidated: false,
   };
 }
 
@@ -875,7 +902,15 @@ function modeloFieldCount(state: State): number {
 }
 
 function reqsFieldCount(): number {
-  return 2;
+  return 3;
+}
+
+function reqSourceChips(current: RequirementSourceKind): string[] {
+  return [
+    chip(`1 ${t("reqs.sourceLocal").toUpperCase()}`, current === "local"),
+    chip(`2 ${t("reqs.sourceGit").toUpperCase()}`, current === "git"),
+    chip(`3 ${t("reqs.sourceMcp").toUpperCase()}`, current === "mcp"),
+  ];
 }
 
 function webhookFieldCount(): number {
@@ -971,11 +1006,64 @@ function tabBody(state: State, id: StepId, width: number, bodyRows: number): str
   if (id === "requisitos") {
     pushMuted(t("reqs.intro"));
     lines.push("");
-    lines.push(...inputField(t("reqs.field"), state.draft.requisitos, state.field === 0, width));
+    lines.push(choiceRow(t("reqs.source"), reqSourceChips(state.draft.reqSourceKind), state.field === 0, t("help.hint16")));
     lines.push("");
-    lines.push(...inputField(t("reqs.tokenField"), state.draft.gitToken, state.field === 1, width, true));
-    pushMuted(gitTokenConfigured() ? t("reqs.tokenOn") : t("reqs.tokenOff"));
-    pushMuted(t("reqs.tokenHint"));
+
+    if (state.draft.reqSourceKind !== "mcp") {
+      lines.push(...inputField(t("reqs.field"), state.draft.requisitos, state.field === 1, width));
+      lines.push("");
+      lines.push(...inputField(t("reqs.tokenField"), state.draft.gitToken, state.field === 2, width, true));
+      pushMuted(gitTokenConfigured() ? t("reqs.tokenOn") : t("reqs.tokenOff"));
+      pushMuted(t("reqs.tokenHint"));
+      lines.push("");
+      lines.push(...evidenceBlock(id, width));
+      return lines;
+    }
+
+    // --- Fonte MCP ---
+    const servers = listMcpServerNames();
+    lines.push(...inputField(t("reqs.mcpServerField"), state.draft.mcpServer, state.field === 1, width));
+    if (!servers.length) {
+      pushMuted(t("reqs.mcpNoServers"));
+    } else {
+      pushMuted(t("reqs.mcpServersHint", { list: servers.join(", ") }));
+    }
+    lines.push("");
+
+    if (state.mcpLoading) {
+      lines.push(ink(`  ${spinnerFrame(state.tick)} ${t("reqs.mcpValidating")}`, theme.info));
+    } else if (state.mcpValidated && state.mcpEpicos.length) {
+      lines.push(ink(`  ${t("reqs.mcpEpicsTitle")}`, theme.accentHi, theme.bold));
+      for (const e of state.mcpEpicos.slice(0, 10)) {
+        lines.push(
+          ink(t("reqs.mcpEpicRow", { key: e.key, title: e.title.slice(0, 48), features: e.featureCount, us: e.usCount }), theme.fg),
+        );
+      }
+      if (state.mcpTotals) {
+        lines.push(
+          ink(
+            `  ${t("reqs.mcpTotals", { considered: state.mcpTotals.considered, fetched: state.mcpTotals.fetched, dropped: state.mcpTotals.dropped })}`,
+            theme.muted,
+          ),
+        );
+      }
+      pushMuted(t("reqs.mcpRehint"));
+    } else if (state.mcpValidated) {
+      pushMuted(t("reqs.mcpNoEpics"));
+    } else if (!state.mcpProjects.length) {
+      pushMuted(t("reqs.mcpPressEnterProjects"));
+    } else {
+      lines.push(ink(`  ${t("reqs.mcpProjectsLoaded", { n: state.mcpProjects.length })}`, theme.info));
+      const listH = 8;
+      let start = Math.max(0, state.mcpProjectIndex - Math.floor(listH / 2));
+      if (start + listH > state.mcpProjects.length) start = Math.max(0, state.mcpProjects.length - listH);
+      const slice = state.mcpProjects.slice(start, start + listH);
+      for (let i = 0; i < slice.length; i++) {
+        const proj = slice[i]!;
+        const real = start + i;
+        lines.push(modelRow(`${proj.name}  (${proj.id.slice(0, 8)})`, real === state.mcpProjectIndex, Math.max(20, width - 4)));
+      }
+    }
     lines.push("");
     lines.push(...evidenceBlock(id, width));
     return lines;
@@ -1183,10 +1271,17 @@ function activeDraft(state: State): { get: () => string; set: (v: string) => voi
     return undefined;
   }
   if (id === "requisitos") {
-    if (state.field === 1) {
+    if (state.draft.reqSourceKind === "mcp") {
+      if (state.field === 1) return { get: () => state.draft.mcpServer, set: (v) => { state.draft.mcpServer = v; } };
+      return undefined;
+    }
+    if (state.field === 2) {
       return { get: () => state.draft.gitToken, set: (v) => { state.draft.gitToken = v; } };
     }
-    return { get: () => state.draft.requisitos, set: (v) => { state.draft.requisitos = v; } };
+    if (state.field === 1) {
+      return { get: () => state.draft.requisitos, set: (v) => { state.draft.requisitos = v; } };
+    }
+    return undefined;
   }
   if (id === "url") return { get: () => state.draft.url, set: (v) => { state.draft.url = v; } };
   if (id === "modelo" && state.draft.provider !== "cursor" && state.field === 1) {
@@ -1268,9 +1363,56 @@ async function saveTab(state: State): Promise<void> {
         state.flash = t("modelo.saved", { id: m.id });
       }
     } else if (id === "requisitos") {
-      saveRequisitos(state.draft.requisitos, state.draft.gitToken);
-      state.draft.gitToken = "";
-      state.flash = t("reqs.saved");
+      if (state.draft.reqSourceKind === "mcp") {
+        if (!state.draft.mcpServer.trim()) throw new Error(t("reqs.mcpServerField"));
+        if (!state.mcpProjects.length) {
+          // 1) Ainda não listou: conecta e busca projetos deste servidor (Plane é o único provider hoje).
+          state.mcpLoading = true;
+          state.mcpValidated = false;
+          state.mcpEpicos = [];
+          paint(state);
+          state.mcpProjects = await listMcpProjects(state.draft.mcpServer.trim(), "plane");
+          state.mcpLoading = false;
+          if (!state.mcpProjects.length) throw new Error(t("reqs.mcpNoProjects"));
+          const idx = state.mcpProjects.findIndex((p) => p.id === state.draft.mcpProjectId);
+          state.mcpProjectIndex = idx >= 0 ? idx : 0;
+          state.flash = t("reqs.mcpProjectsLoaded", { n: state.mcpProjects.length });
+        } else {
+          // 2) Projeto destacado com ↑↓: valida (busca+agrupa Épicos) e grava — materializa AGORA.
+          const proj = state.mcpProjects[state.mcpProjectIndex];
+          if (!proj) throw new Error(t("reqs.mcpNoProjects"));
+          state.mcpLoading = true;
+          paint(state);
+          const cfg = {
+            server: state.draft.mcpServer.trim(),
+            provider: "plane",
+            projectId: proj.id,
+            requiredLabels: ["Requisitos"],
+          };
+          const preview = await validateMcpRequirementSource(cfg);
+          state.mcpEpicos = preview.epics;
+          state.mcpTotals = {
+            fetched: preview.totalFetched,
+            considered: preview.totalConsidered,
+            dropped: preview.droppedCount,
+          };
+          state.mcpValidated = true;
+          state.mcpLoading = false;
+          if (!preview.epics.length) {
+            state.flash = t("reqs.mcpNoEpics");
+            state.flashErr = true;
+            return;
+          }
+          state.draft.mcpProjectId = proj.id;
+          state.draft.mcpProjectName = proj.name;
+          const saved = await saveRequisitosMcp(cfg);
+          state.flash = t("reqs.mcpSaved", { n: saved.usCount, dir: saved.dir });
+        }
+      } else {
+        saveRequisitosLocalOrGit(state.draft.requisitos, state.draft.gitToken);
+        state.draft.gitToken = "";
+        state.flash = t("reqs.saved");
+      }
     } else if (id === "url") {
       saveUrl(state.draft.url);
       state.flash = t("url.saved");
@@ -1328,6 +1470,7 @@ async function saveTab(state: State): Promise<void> {
     state.flash = err instanceof Error ? err.message : String(err);
   } finally {
     state.spin = false;
+    state.mcpLoading = false;
   }
 }
 
@@ -1583,6 +1726,55 @@ export async function runTui(): Promise<void> {
           state.models = [];
           state.flash = t("modelo.providerHint");
           state.flashErr = false;
+          paint(state);
+          return;
+        }
+
+        if (
+          id === "requisitos" &&
+          state.field === 0 &&
+          (key.type === "left" ||
+            key.type === "right" ||
+            (key.type === "char" && ["1", "2", "3"].includes(key.ch)))
+        ) {
+          const order: RequirementSourceKind[] = ["local", "git", "mcp"];
+          if (key.type === "char") {
+            state.draft.reqSourceKind = order[Number(key.ch) - 1] ?? "local";
+          } else {
+            const i = order.indexOf(state.draft.reqSourceKind);
+            state.draft.reqSourceKind = order[(i + (key.type === "right" ? 1 : -1) + order.length) % order.length]!;
+          }
+          state.mcpProjects = [];
+          state.mcpEpicos = [];
+          state.mcpValidated = false;
+          state.field = 1;
+          paint(state);
+          return;
+        }
+
+        if (
+          id === "requisitos" &&
+          state.draft.reqSourceKind === "mcp" &&
+          state.mcpProjects.length > 0 &&
+          !state.mcpValidated &&
+          (key.type === "up" || key.type === "down")
+        ) {
+          const dir = key.type === "up" ? -1 : 1;
+          state.mcpProjectIndex = Math.max(0, Math.min(state.mcpProjects.length - 1, state.mcpProjectIndex + dir));
+          paint(state);
+          return;
+        }
+
+        if (
+          id === "requisitos" &&
+          state.draft.reqSourceKind === "mcp" &&
+          state.mcpValidated &&
+          (key.type === "char" && (key.ch === "r" || key.ch === "R"))
+        ) {
+          state.mcpProjects = [];
+          state.mcpEpicos = [];
+          state.mcpValidated = false;
+          state.mcpTotals = undefined;
           paint(state);
           return;
         }

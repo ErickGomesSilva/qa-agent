@@ -28,6 +28,11 @@ import { applyProject } from "./projects.ts";
 import { materializeRequisitos, looksLikeGitReqs, projectSlugFromReqInput } from "./req-source.ts";
 import { listAllReports } from "./coverage-list.ts";
 import { formatAgentElapsed, getAgentTelemetry } from "./agent-telemetry.ts";
+import type { McpRequirementSourceConfig } from "./requirements/types.ts";
+import { previewMcpProject, type PreviewResult } from "./requirements/mcp-adapter.ts";
+import { loadMcpServers } from "./mcp.ts";
+import { createProjectManagerAdapter, listRegisteredProviders } from "./project-managers/registry.ts";
+import "./project-managers/plane-adapter.ts";
 
 export type StepId =
   | "chave"
@@ -222,14 +227,18 @@ export function getSteps(): StepView[] {
       id: "requisitos",
       f: 3,
       title: t("tab.requisitos"),
-      done: Boolean(
-        s.requisitosPath && (looksLikeGitReqs(s.requisitosPath) || existsSync(s.requisitosPath)),
-      ),
-      summary: s.requisitosPath
-        ? gitTokenConfigured()
-          ? `${s.requisitosPath} · ${t("reqs.tokenOn")}`
+      done:
+        s.requirementSourceKind === "mcp"
+          ? Boolean(s.mcpRequirementSource?.projectId)
+          : Boolean(s.requisitosPath && (looksLikeGitReqs(s.requisitosPath) || existsSync(s.requisitosPath))),
+      summary:
+        s.requirementSourceKind === "mcp" && s.mcpRequirementSource
+          ? t("reqs.summaryMcp", { provider: s.mcpRequirementSource.provider, project: s.mcpRequirementSource.projectId })
           : s.requisitosPath
-        : t("common.pending"),
+            ? gitTokenConfigured()
+              ? `${s.requisitosPath} · ${t("reqs.tokenOn")}`
+              : s.requisitosPath
+            : t("common.pending"),
     },
     {
       id: "url",
@@ -411,6 +420,69 @@ export function saveRequisitos(path: string, gitToken?: string): void {
   ensureWorkspace();
   addEvidence("requisitos", t("reqs.evidence", { path: looksLikeGitReqs(input) ? input : abs }));
   if (token) addEvidence("requisitos", t("reqs.tokenEvidence", { mask: maskSecret(token) }));
+}
+
+/** Nomes de servidores MCP configurados em mcp.json (ex.: "plane"). */
+export function listMcpServerNames(): string[] {
+  return Object.keys(loadMcpServers());
+}
+
+export function listMcpProviders(): string[] {
+  return listRegisteredProviders();
+}
+
+/**
+ * Busca projetos do provider/servidor MCP para a TUI escolher — não grava nada ainda.
+ * Erros de conexão/autenticação sobem para a UI decidir a mensagem (nunca trava o TUI).
+ */
+export async function listMcpProjects(server: string, provider: string): Promise<{ id: string; name: string }[]> {
+  const adapter = createProjectManagerAdapter(provider, { server });
+  const caps = await adapter.capabilities();
+  if (!caps.readProjects) throw new Error(`Provider '${provider}' não permite listar projetos`);
+  const projects = await adapter.listProjects();
+  return projects.map((p) => ({ id: p.id, name: p.name }));
+}
+
+/** Valida a config MCP buscando e agrupando Épicos — é isto que o usuário confere antes de salvar. */
+export async function validateMcpRequirementSource(cfg: McpRequirementSourceConfig): Promise<PreviewResult> {
+  return previewMcpProject(cfg);
+}
+
+/**
+ * Grava a fonte de requisitos como MCP — só chamado depois de validateMcpRequirementSource() ok.
+ * Materializa os requisitos AGORA em Markdown local e aponta requisitosPath para essa pasta:
+ * o resto do pipeline (mapa, roteiro, specs, auditoria) não muda — continua lendo .md local,
+ * igual a local/git. Atualizar do Plane de novo = voltar em F3 e salvar de novo.
+ */
+export async function saveRequisitosMcp(cfg: McpRequirementSourceConfig): Promise<{ dir: string; usCount: number }> {
+  const { resolveMcpRequirementSource } = await import("./requirements/mcp-adapter.ts");
+  const result = await resolveMcpRequirementSource(cfg);
+  ensureWorkspace();
+  const slug = `mcp-${cfg.provider}-${cfg.projectId}`.replace(/[^a-zA-Z0-9_-]+/g, "-").slice(0, 60);
+  patchSettings({
+    requirementSourceKind: "mcp",
+    mcpRequirementSource: cfg,
+    requisitosPath: result.dir,
+    project: slug,
+  });
+  applyProject(slug);
+  const usCount = result.manifest?.entries.length ?? 0;
+  addEvidence(
+    "requisitos",
+    t("reqs.mcpEvidence", {
+      server: cfg.server,
+      provider: cfg.provider,
+      project: cfg.projectId,
+      n: usCount,
+    }),
+  );
+  return { dir: result.dir, usCount };
+}
+
+/** Volta a fonte para local/git (path/URL) — usado quando o usuário troca de volta na TUI. */
+export function saveRequisitosLocalOrGit(path: string, gitToken?: string): void {
+  patchSettings({ requirementSourceKind: undefined, mcpRequirementSource: undefined });
+  saveRequisitos(path, gitToken);
 }
 
 export function saveUrl(raw: string): void {

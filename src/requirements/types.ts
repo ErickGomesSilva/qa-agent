@@ -82,6 +82,11 @@ export type McpRequirementSourceConfig = {
   bugLinkRelation?: RequirementRelationKind;
   /** Relação usada para identificar que uma requirement-change substitui RN/CA. */
   changeSupersedesRelation?: RequirementRelationKind;
+  /**
+   * Só considera work items que tenham QUALQUER uma destas labels (por nome, ex.: "Requisitos").
+   * Ausente = todos os work items do projeto/ciclo entram (sem filtro por label).
+   */
+  requiredLabels?: string[];
 };
 
 export type RequirementRunScope =

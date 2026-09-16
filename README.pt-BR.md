@@ -127,7 +127,19 @@ Arquitetura (`src/requirements/` + `src/project-managers/`): a fonte MCP busca w
 
 O servidor MCP (`plane` no exemplo) fica configurado em `mcp.json` — ver `mcp.example.json`. Nenhum token/segredo do MCP é gravado em `data/`, relatórios, `run.json` ou logs.
 
-**Status desta versão:** a camada de domínio (contrato normalizado, adapter Plane, contrato efetivo, materialização, resolução de escopo, sincronização/dedupe de Bug) está implementada e testada com fixtures (sem depender de rede). **Ainda não há** navegação MCP na TUI (F3) nem flags CLI dedicadas para escolher workspace/projeto/ciclo/US/Bug — por ora, a seleção é feita editando `data/settings.json` diretamente. Um segundo adapter (Jira, Linear, Azure DevOps...) pode ser registrado em `src/project-managers/registry.ts` sem alterar o orquestrador.
+**Configurar pela F3 (TUI), sem editar arquivo nenhum:** a aba **Requisitos** agora tem um seletor **Local / Git / MCP** (teclas 1/2/3 ou ←→).
+
+Ao escolher **MCP**:
+1. Digite o nome do servidor MCP (de `mcp.json`, ex.: `plane`).
+2. **Enter** conecta e lista os projetos do workspace — escolha com ↑↓.
+3. **Enter** de novo **valida** o projeto: busca todos os work items, filtra só os que têm a label **"Requisitos"** (nome fixo hoje — evita misturar com itens `QA / E2E` que o próprio QA Agent cria de volta no Plane, ou tarefas de `Desenvolvimento`) e agrupa em **Épicos** para você conferir antes de gravar.
+4. Se a mesma US aparecer duplicada (ex.: reimportação antiga `[V1]` + catálogo atual), **a versão com `updated_at` mais recente vence** — a mais antiga é descartada e contada no resumo (`N duplicata(s) descartada(s)`). Isso é decidido por regra fixa (recência), nunca por adivinhação de conteúdo.
+5. Confirmados os Épicos, a F3 já materializa os requisitos em Markdown local e aponta `requisitosPath` para essa pasta — o resto do pipeline (mapa, roteiro, specs, auditoria) roda **exatamente igual** ao modo local/Git, sem nenhuma mudança.
+6. Tecla **R** na F3 (com MCP validado) reconecta e relista do zero — é assim que você atualiza do Plane depois de mudanças lá.
+
+**Convenção usada (ajustável por workspace):** como nem todo workspace Plane tem "Work Item Types" habilitado, Épico/Feature/US são identificados por convenção de título (`Épico:`, `Feature:`, `US_XXX`) quando o tipo nativo não existe — a *label* (hoje fixa em `"Requisitos"`) é o filtro que decide o que é requisito de verdade, não o título.
+
+**Status desta versão:** a camada de domínio (contrato normalizado, adapter Plane, contrato efetivo, materialização, resolução de escopo, sincronização/dedupe de Bug) e a configuração pela F3 (Local/Git/MCP, listar projetos, validar Épicos) estão implementadas e testadas com fixtures (sem depender de rede real). **Ainda não há**: flags CLI dedicadas (`--requirements-source mcp ...`), seleção de ciclo/release na F3, escolha de provider quando houver mais de um registrado (hoje só Plane existe, então a F3 assume `provider=plane`), nem propagação do escopo US/cenário/Bug para dentro do roteiro/geração (só a resolução do escopo em si está pronta — ver `scope-resolver.ts`). Um segundo adapter (Jira, Linear, Azure DevOps...) pode ser registrado em `src/project-managers/registry.ts` sem alterar o orquestrador nem a UI da F3.
 
 ## Comandos extras
 

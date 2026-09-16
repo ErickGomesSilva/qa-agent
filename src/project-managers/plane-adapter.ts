@@ -65,6 +65,11 @@ const planeRefListSchema = z.object({
   items: z.array(z.object({ id: z.string(), name: z.string() })).default([]),
 });
 
+const planeLabelListSchema = z.object({
+  results: z.array(z.object({ id: z.string(), name: z.string() })).optional(),
+  items: z.array(z.object({ id: z.string(), name: z.string() })).optional(),
+});
+
 function unwrapToolResult(raw: unknown): unknown {
   // MCP tool results normalmente vêm como { content: [{ type: "text"|"json", text/json }] } ou já o objeto puro.
   if (isRecord(raw) && Array.isArray((raw as { content?: unknown[] }).content)) {
@@ -89,12 +94,25 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
 
-function mapItemType(raw?: string): RequirementItemType {
+function mapItemType(raw: string | undefined, title: string): RequirementItemType {
   const v = (raw ?? "").trim().toLowerCase();
   if (v === "epic") return "epic";
   if (v === "feature") return "feature";
   if (v === "bug") return "bug";
   if (/mudan[cç]a|requirement.change|change.request/.test(v)) return "requirement-change";
+  if (v) return "user-story";
+  // Sem tipo nativo do Plane (workitem_type desabilitado no workspace): cai para convenção de
+  // título — igual ao que já usamos para US_/CA/RN em requisitos Markdown locais.
+  return mapItemTypeFromTitle(title);
+}
+
+/** Convenção de título quando o Plane não tem Work Item Types habilitado (type/type_id nulos). */
+export function mapItemTypeFromTitle(title: string): RequirementItemType {
+  if (/[eé]pico\s*[:\-]/i.test(title) || /^\[?[^\]]*\]?\s*[EÉ]pico/i.test(title)) return "epic";
+  if (/feature\s*[:\-]/i.test(title)) return "feature";
+  if (/\bbug\b/i.test(title)) return "bug";
+  if (/mudan[cç]a de requisito/i.test(title)) return "requirement-change";
+  if (/\bUS_[A-Z0-9_]+\b/.test(title)) return "user-story";
   return "user-story";
 }
 
@@ -130,9 +148,17 @@ function extractStructuredSections(description: string): {
   return { rules, criteria };
 }
 
-function mapWorkItemToContract(item: PlaneWorkItem, projectId: string, workspaceId?: string, cycleId?: string): RequirementContract {
+function mapWorkItemToContract(
+  item: PlaneWorkItem,
+  projectId: string,
+  workspaceId?: string,
+  cycleId?: string,
+  labelNamesById?: Map<string, string>,
+): RequirementContract {
   const description = item.description ?? item.description_stripped ?? "";
   const { rules, criteria } = extractStructuredSections(description);
+  const title = item.name ?? item.title ?? "(sem título)";
+  const labels = (item.labels ?? []).map((id) => labelNamesById?.get(id) ?? id);
   return {
     provider: PROVIDER,
     workspaceId: item.workspace_id ?? item.workspace ?? workspaceId,
@@ -140,14 +166,14 @@ function mapWorkItemToContract(item: PlaneWorkItem, projectId: string, workspace
     cycleId: item.cycle_id ?? item.cycle ?? cycleId,
     externalId: item.id,
     key: item.identifier ?? (item.sequence_id !== undefined ? String(item.sequence_id) : item.id),
-    type: mapItemType(item.type?.name ?? item.type_name),
-    title: item.name ?? item.title ?? "(sem título)",
+    type: mapItemType(item.type?.name ?? item.type_name, title),
+    title,
     description,
     status: item.state?.name ?? item.state_name,
     approved: Boolean(item.approved ?? item.is_approved ?? false),
     parentId: item.parent,
     assigneeIds: item.assignees ?? [],
-    labels: item.labels ?? [],
+    labels,
     businessRules: rules,
     acceptanceCriteria: criteria,
     relations: [],
@@ -176,7 +202,27 @@ function mapRelationKind(raw: string): RequirementRelation["kind"] {
 
 class PlaneAdapter implements ProjectManagerAdapter {
   readonly provider = PROVIDER;
+  private labelCache = new Map<string, Map<string, string>>();
   constructor(private readonly caller: McpToolCaller) {}
+
+  /** Resolve id->nome das labels do projeto (cacheado por projectId) — usado para filtrar por nome. */
+  private async labelNamesFor(projectId: string): Promise<Map<string, string>> {
+    const cached = this.labelCache.get(projectId);
+    if (cached) return cached;
+    try {
+      const raw = unwrapToolResult(await this.caller.callTool("label", { action: "list", project_id: projectId }));
+      const parsed = planeLabelListSchema.safeParse(raw);
+      const map = new Map<string, string>();
+      const list = parsed.success ? (parsed.data.results ?? parsed.data.items ?? []) : [];
+      for (const l of list) map.set(l.id, l.name);
+      this.labelCache.set(projectId, map);
+      return map;
+    } catch {
+      const empty = new Map<string, string>();
+      this.labelCache.set(projectId, empty);
+      return empty;
+    }
+  }
 
   async capabilities(): Promise<ProjectManagerCapabilities> {
     // Plane via MCP do usuário: leitura completa; escrita de work items existe (workitem create/update),
@@ -229,7 +275,10 @@ class PlaneAdapter implements ProjectManagerAdapter {
     );
     const parsed = planeListSchema.safeParse(raw);
     if (!parsed.success) throw new McpError("invalid_response", "workitem.list: resposta inválida", PROVIDER);
-    const items = parsed.data.items.map((i) => mapWorkItemToContract(i, params.projectId, params.workspaceId, params.cycleId));
+    const labelNames = await this.labelNamesFor(params.projectId);
+    const items = parsed.data.items.map((i) =>
+      mapWorkItemToContract(i, params.projectId, params.workspaceId, params.cycleId, labelNames),
+    );
     const filtered = params.types?.length ? items.filter((i) => params.types!.includes(i.type)) : items;
     return { items: filtered, nextCursor: parsed.data.next_cursor ?? parsed.data.nextCursor };
   }
@@ -238,7 +287,8 @@ class PlaneAdapter implements ProjectManagerAdapter {
     const raw = unwrapToolResult(await this.caller.callTool("workitem", { action: "retrieve", id: externalId }));
     const parsed = planeWorkItemSchema.safeParse(raw);
     if (!parsed.success) return undefined;
-    const contract = mapWorkItemToContract(parsed.data, projectId);
+    const labelNames = await this.labelNamesFor(projectId);
+    const contract = mapWorkItemToContract(parsed.data, projectId, undefined, undefined, labelNames);
 
     try {
       const relRaw = unwrapToolResult(await this.caller.callTool("workitem_relation", { action: "list", id: externalId }));

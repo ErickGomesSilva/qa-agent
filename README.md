@@ -131,7 +131,19 @@ Architecture (`src/requirements/` + `src/project-managers/`): the MCP source fet
 
 The MCP server (`plane` above) is configured in `mcp.json` — see `mcp.example.json`. No MCP token/secret is ever written to `data/`, reports, `run.json`, or logs.
 
-**Status in this version:** the domain layer (normalized contract, Plane adapter, effective contract, materialization, scope resolution, Bug sync/dedupe) is implemented and unit-tested with fixtures (no network dependency). **Not yet implemented:** MCP browsing in the TUI (F3) or dedicated CLI flags to pick workspace/project/cycle/US/Bug — for now, selection is done by editing `data/settings.json` directly. A second adapter (Jira, Linear, Azure DevOps...) can be registered in `src/project-managers/registry.ts` without touching the orchestrator.
+**Configure from F3 (TUI), no file editing:** the **Requirements** tab now has a **Local / Git / MCP** selector (keys 1/2/3 or ←→).
+
+When you pick **MCP**:
+1. Type the MCP server name (from `mcp.json`, e.g. `plane`).
+2. **Enter** connects and lists the workspace's projects — pick with ↑↓.
+3. **Enter** again **validates** the project: fetches all work items, keeps only those with the **"Requisitos"** label (fixed name today — keeps out `QA / E2E` items the tool writes back to Plane, and `Desenvolvimento` tasks) and groups them into **Epics** for you to review before saving.
+4. If the same US appears twice (e.g. an older `[V1]` re-import plus the current catalog), **the version with the most recent `updated_at` wins** — the older one is dropped and counted in the summary (`N duplicate(s) dropped`). This is a fixed recency rule, never a content guess.
+5. Once you confirm the Epics, F3 materializes the requirements into local Markdown and points `requisitosPath` at that folder — the rest of the pipeline (map, roteiro, specs, audit) runs **exactly like** local/Git, unchanged.
+6. Press **R** on F3 (with MCP already validated) to reconnect and relist from scratch — that's how you refresh from Plane later.
+
+**Convention used (workspace-dependent):** since not every Plane workspace has Work Item Types enabled, Epic/Feature/US are detected by title convention (`Épico:`, `Feature:`, `US_XXX`) when no native type exists — the *label* (fixed to `"Requisitos"` today) is what decides what counts as a real requirement, not the title.
+
+**Status in this version:** the domain layer (normalized contract, Plane adapter, effective contract, materialization, scope resolution, Bug sync/dedupe) and F3 configuration (Local/Git/MCP, list projects, validate Epics) are implemented and unit-tested with fixtures (no live network dependency). **Not yet implemented:** dedicated CLI flags (`--requirements-source mcp ...`), cycle/release picker in F3, provider picker when more than one is registered (only Plane exists today, so F3 assumes `provider=plane`), or propagating the US/scenario/Bug scope into roteiro/generation (only scope resolution itself is ready — see `scope-resolver.ts`). A second adapter (Jira, Linear, Azure DevOps...) can be registered in `src/project-managers/registry.ts` without touching the orchestrator or the F3 UI.
 
 ## CLI extras
 
