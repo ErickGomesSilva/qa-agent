@@ -1,9 +1,10 @@
 import { t } from "../i18n.ts";
+import { appVersion } from "../app-version.ts";
 import { letterSpace, sgr, theme } from "./theme.ts";
 
 export function printBanner(subtitle?: string): void {
   console.log();
-  console.log(sgr(letterSpace("QA AGENT"), theme.bold, theme.accentHi));
+  console.log(`${sgr(letterSpace("QA AGENT"), theme.bold, theme.accentHi)} ${sgr(`v${appVersion()}`, theme.muted)}`);
   console.log(sgr("━".repeat(56), theme.border));
   console.log(sgr(`  ${subtitle ?? t("header.tagline")}`, theme.muted));
   console.log();

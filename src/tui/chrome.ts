@@ -1,6 +1,7 @@
 import { isScriptNotice, t, type Locale } from "../i18n.ts";
 import type { StepView } from "../setup.ts";
 import { getAgentTelemetry } from "../agent-telemetry.ts";
+import { appVersion } from "../app-version.ts";
 import {
   fill,
   frame,
@@ -14,7 +15,7 @@ import {
 } from "./theme.ts";
 
 export function wordmark(width: number, locale: Locale, armed: number, total: number, tick: number, live: boolean): string {
-  const mark = ink(letterSpace("QA AGENT"), theme.bold, theme.accentHi);
+  const mark = `${ink(letterSpace("QA AGENT"), theme.bold, theme.accentHi)} ${ink(`v${appVersion()}`, theme.muted)}`;
   const bar = gauge(armed, total, 10);
   const ratio = ink(`${armed}/${total}`, theme.muted);
   const liveBit = live

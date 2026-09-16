@@ -3,9 +3,10 @@ import { cleanAllProjects, cleanCurrentProject } from "./clean.ts";
 import { config } from "./config.ts";
 import { argvFlag, applyResolvedProject, listProjectSlugs, workspacePathFor } from "./projects.ts";
 import { applySavedSettings } from "./setup.ts";
+import { appVersion } from "./app-version.ts";
 
 export function printCliHelp(): void {
-  console.log(`QA Agent
+  console.log(`QA Agent v${appVersion()}
 
 Uso:
   qaagent                  TUI (F1–F10)
@@ -87,6 +88,10 @@ export async function runCleanCli(argv = process.argv): Promise<void> {
 }
 
 export async function handleEarlyCli(argv = process.argv): Promise<boolean> {
+  if (argvFlag(argv, "version") || argv.includes("-v")) {
+    console.log(appVersion());
+    return true;
+  }
   if (argvFlag(argv, "help") || argv.includes("-h") || argv.includes("-?")) {
     printCliHelp();
     return true;
