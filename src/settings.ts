@@ -6,6 +6,7 @@ import type { WebhookProvider } from "./webhook.ts";
 import { parseLlmProvider } from "./llm/presets.ts";
 import type { LlmProvider } from "./llm/types.ts";
 import type { AuthKind } from "./types.ts";
+import type { McpRequirementSourceConfig, RequirementSourceKind, RequirementRunScope } from "./requirements/types.ts";
 
 export type AppSettings = {
   locale?: Locale;
@@ -13,6 +14,12 @@ export type AppSettings = {
   llmBaseUrl?: string;
   cursorModel?: string;
   requisitosPath?: string;
+  /** "local" | "git" | "mcp". Ausente = inferido de requisitosPath (compatibilidade total). */
+  requirementSourceKind?: RequirementSourceKind;
+  /** Config da fonte MCP (Plane, etc.) — só usada quando requirementSourceKind === "mcp". */
+  mcpRequirementSource?: McpRequirementSourceConfig;
+  /** Escopo da última seleção (suíte completa / US / cenário / Bug) — opcional, default "all". */
+  requirementRunScope?: RequirementRunScope;
   baseUrl?: string;
   authKind?: AuthKind;
   credentialsMd?: string;
@@ -62,6 +69,18 @@ export function loadSettings(): AppSettings {
     llmBaseUrl: typeof raw.llmBaseUrl === "string" ? raw.llmBaseUrl : undefined,
     cursorModel: typeof raw.cursorModel === "string" ? raw.cursorModel : undefined,
     requisitosPath: typeof raw.requisitosPath === "string" ? raw.requisitosPath : undefined,
+    requirementSourceKind:
+      raw.requirementSourceKind === "local" || raw.requirementSourceKind === "git" || raw.requirementSourceKind === "mcp"
+        ? raw.requirementSourceKind
+        : undefined,
+    mcpRequirementSource:
+      raw.mcpRequirementSource && typeof raw.mcpRequirementSource === "object"
+        ? (raw.mcpRequirementSource as McpRequirementSourceConfig)
+        : undefined,
+    requirementRunScope:
+      raw.requirementRunScope && typeof raw.requirementRunScope === "object"
+        ? (raw.requirementRunScope as RequirementRunScope)
+        : undefined,
     baseUrl: typeof raw.baseUrl === "string" ? raw.baseUrl : undefined,
     authKind,
     credentialsMd: typeof raw.credentialsMd === "string" ? raw.credentialsMd : undefined,

@@ -8,6 +8,15 @@
       "env": {
         "DISCORD_WEBHOOK_URL": "cole-no-.env-nao-aqui"
       }
+    },
+    "plane": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@makeplane/plane-mcp-server"],
+      "env": {
+        "PLANE_API_KEY": "cole-sua-chave-aqui-nao-commit",
+        "PLANE_WORKSPACE_SLUG": "sua-workspace"
+      }
     }
   }
 }

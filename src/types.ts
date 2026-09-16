@@ -64,6 +64,8 @@ export type ProductFinding = {
   grepHint?: string;
   resumo: string;
   classe: TriageClass;
+  /** Preenchido somente após confirmação do gestor de projetos (nunca antes). */
+  externalIssue?: { provider: string; id: string; key?: string; url?: string };
 };
 
 export type PlaywrightFailure = {
@@ -160,6 +162,11 @@ export type OrchestratorRun = {
 
 export type CreateRunBody = {
   requisitosPath?: string;
+  /** "local" | "git" | "mcp". Ausente = inferido de requisitosPath (compatível com payloads antigos). */
+  requirementsSourceKind?: import("./requirements/types.ts").RequirementSourceKind;
+  mcpRequirementSource?: import("./requirements/types.ts").McpRequirementSourceConfig;
+  /** Suíte completa / US / cenário / Bug. Ausente = suíte completa (comportamento atual). */
+  scope?: import("./requirements/types.ts").RequirementRunScope;
   baseUrl?: string;
   authKind?: AuthKind;
   login?: string;

@@ -104,6 +104,35 @@ F3 accepts a **local folder** or a **Git URL**: GitHub, Gitea/Forgejo/Codeberg (
 
 **Run all = yes** turns on k6, runtime mass, browser tour, and a visible browser (headed + video). Individual toggles stay available. Space flips a switch; Enter persists to `.env` + `data/settings.json`.
 
+## Project managers (MCP) — Plane and others
+
+Besides a local folder and Git, requirements can come from a **project manager connected via MCP** (e.g. Plane). An approved User Story in the manager is the **official contract**; approved Requirement Changes (with an explicit relation superseding a rule/criterion) alter the effective contract — drafts and unresolved conflicts are **never** guessed (the contract is flagged ambiguous instead).
+
+Architecture (`src/requirements/` + `src/project-managers/`): the MCP source fetches work items from the provider, resolves the **effective contract** per US, and materializes **canonical Markdown** compatible with the existing pipeline (`ROTEIRO.json`, spec generation, audit) — nothing changes for `local`/`git` users. A `SOURCE-MANIFEST.json` keeps provenance (provider, project, cycle, external IDs, revision) without secrets.
+
+**Run scope** (`RequirementRunScope`): full suite, a **specific US**, a **scenario** (US + explicitly-related dependencies/journeys, never the whole Feature/Epic) or **Bug retest** (resolves the origin US and runs the smallest slice).
+
+**Automatic Bug creation:** only happens after triage classifies **PRODUTO** — the LLM never creates external items on its own. Deduplication uses a stable signature (provider+project+US+CA+behavior); if sync fails, the local finding (`PRODUTO.json`) is preserved and a pending file is written (`BUG-SYNC-PENDENTE.md`/`.json`) for idempotent retry — it never claims the Bug was created without provider confirmation.
+
+**Config** (`data/settings.json`, optional fields — existing installs keep working unchanged):
+
+```json
+{
+  "requirementSourceKind": "mcp",
+  "mcpRequirementSource": {
+    "server": "plane",
+    "provider": "plane",
+    "projectId": "...",
+    "cycleId": "...",
+    "defaultLabels": ["qa-agent"]
+  }
+}
+```
+
+The MCP server (`plane` above) is configured in `mcp.json` — see `mcp.example.json`. No MCP token/secret is ever written to `data/`, reports, `run.json`, or logs.
+
+**Status in this version:** the domain layer (normalized contract, Plane adapter, effective contract, materialization, scope resolution, Bug sync/dedupe) is implemented and unit-tested with fixtures (no network dependency). **Not yet implemented:** MCP browsing in the TUI (F3) or dedicated CLI flags to pick workspace/project/cycle/US/Bug — for now, selection is done by editing `data/settings.json` directly. A second adapter (Jira, Linear, Azure DevOps...) can be registered in `src/project-managers/registry.ts` without touching the orchestrator.
+
 ## CLI extras
 
 ```text

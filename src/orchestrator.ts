@@ -48,6 +48,7 @@ import {
 } from "./product-findings.ts";
 import { loadQuarantine, quarantineGrep, saveQuarantine, settleQuarantine } from "./quarantine.ts";
 import { formatMatrixTerminal, writeTraceMatrix } from "./trace-matrix.ts";
+import { buildProductBugInput, getConfiguredBugSink, syncProductFinding } from "./product-manager-runtime.ts";
 import type {
   CreateRunBody,
   OrchestratorRun,
@@ -101,6 +102,44 @@ function productFromFailure(failure: PlaywrightFailure | undefined, resumo: stri
     resumo,
     classe: "PRODUTO",
   };
+}
+
+/**
+ * Sincroniza um achado PRODUTO com o gestor de projetos configurado — SOMENTE quando o usuário
+ * configurou explicitamente uma fonte MCP com escrita (requirementSourceKind="mcp"). Para a
+ * imensa maioria das instalações (local/git, sem MCP) isto é um no-op silencioso: o comportamento
+ * atual (webhook + PRODUTO.json local) permanece 100% inalterado.
+ */
+async function maybeSyncBugFinding(
+  run: OrchestratorRun,
+  item: ProductFinding,
+  failure: PlaywrightFailure | undefined,
+  log: (line: string) => void,
+): Promise<void> {
+  try {
+    const sink = await getConfiguredBugSink(log);
+    if (!sink) return;
+    const input = buildProductBugInput({
+      finding: item,
+      failure,
+      baseUrl: run.baseUrl,
+      runId: run.id,
+      reportRef: run.coverageMdPath,
+    });
+    const outcome = await syncProductFinding({ sink, input, e2eDir: run.e2eDir, onLog: log });
+    if (outcome.status === "created" || outcome.status === "updated") {
+      item.externalIssue = {
+        provider: input.provider,
+        id: outcome.issue.id,
+        key: outcome.issue.key,
+        url: outcome.issue.url,
+      };
+    }
+  } catch (err) {
+    log(
+      `aviso: sincronização de Bug com o gestor falhou de forma inesperada — achado permanece local (${err instanceof Error ? err.message : String(err)})`,
+    );
+  }
 }
 
 function stuckFromFailure(failure: PlaywrightFailure | undefined, attempts: number, limit: number): StuckCase {
@@ -843,12 +882,16 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
       run.productFindings = products;
       const id = [item.us, item.ca].filter(Boolean).join(" ") || item.title.slice(0, 80);
       log(`PRODUTO ▸ ${id} — gravado; suíte segue (F9 Matriz)`);
+      await maybeSyncBugFinding(run, item, failure, log);
       sameKey = "";
       sameAttempts = 0;
       continue;
     }
 
-    if (triage.classe === "PRODUTO") run.status = "paused_produto";
+    if (triage.classe === "PRODUTO") {
+      run.status = "paused_produto";
+      await maybeSyncBugFinding(run, productFromFailure(failure, triage.resumo), failure, log);
+    }
     else if (triage.classe === "MASSA") run.status = "paused_massa";
     else if (triage.classe === "AMBIENTE") run.status = "paused_ambiente";
     else if (triage.classe === "TESTE") run.status = "paused_triage";

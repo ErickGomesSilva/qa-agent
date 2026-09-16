@@ -9,6 +9,8 @@ export type RunEscopo = {
   modo: EscopoModo;
   labels: string[];
   paths: string[];
+  /** Opcional: recorte por US (ex.: modo "us"/"scenario"/"bug" do RequirementRunScope). Sem impacto quando ausente. */
+  usIds?: string[];
 };
 
 function splitList(raw: string): string[] {
