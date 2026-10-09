@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { chromium, type Page } from "playwright-core";
 import { config } from "./config.ts";
-import { tryLogin } from "./logic-explore.ts";
+import { CONTEXT_PICKER_HEADING, preferredContextName, tryLogin } from "./logic-explore.ts";
 import type { AuthKind } from "./types.ts";
 import { scriptsDir } from "./workspace.ts";
 
@@ -82,11 +82,13 @@ function escapeRe(s: string): string {
 }
 
 async function pickContextIfNeeded(page: Page, onLog: (line: string) => void): Promise<string | undefined> {
-  const heading = page.getByRole("heading", { name: /Selecionar contexto/i });
+  const heading = page.getByRole("heading", { name: CONTEXT_PICKER_HEADING }).first();
   if (!(await heading.isVisible({ timeout: 1500 }).catch(() => false))) return undefined;
 
   const items = await collectClickables(page);
+  const wanted = preferredContextName().toLowerCase();
   const candidate =
+    (wanted ? items.find((i) => i.name.toLowerCase().includes(wanted)) : undefined) ??
     items.find((i) => i.role === "button" && !DANGEROUS.test(i.name) && !/entrar|login|continuar/i.test(i.name)) ??
     items.find((i) => i.role === "option");
   if (!candidate) {

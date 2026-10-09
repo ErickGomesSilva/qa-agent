@@ -42,8 +42,8 @@ describe("filterByRequiredLabels", () => {
 
 describe("dedupeByRecency", () => {
   it("mantém a versão com updatedAt mais recente entre US duplicadas", () => {
-    const older = us({ externalId: "old", title: "[V1] US_LIV_001 — versão antiga", updatedAt: "2026-08-27T00:00:00Z" });
-    const newer = us({ externalId: "new", title: "[QA] US_LIV_001 — versão nova", updatedAt: "2026-09-01T00:00:00Z" });
+    const older = us({ externalId: "old", title: "[V1] US_PED_001 — versão antiga", updatedAt: "2026-08-27T00:00:00Z" });
+    const newer = us({ externalId: "new", title: "[QA] US_PED_001 — versão nova", updatedAt: "2026-09-01T00:00:00Z" });
     const { kept, dropped } = dedupeByRecency([older, newer]);
     assert.equal(kept.length, 1);
     assert.equal(kept[0]!.externalId, "new");
@@ -69,7 +69,7 @@ class FakeAdapter implements ProjectManagerAdapter {
     return [];
   }
   async listProjects() {
-    return [{ id: "proj-1", name: "Cernova" }];
+    return [{ id: "proj-1", name: "Acme" }];
   }
   async listCycles() {
     return [];
@@ -106,14 +106,14 @@ describe("previewMcpProject / resolveMcpRequirementSource (fixture MCP, sem rede
   });
   const usOld = us({
     externalId: "us-old",
-    title: "[V1] US_LIV_001 — versão antiga",
+    title: "[V1] US_PED_001 — versão antiga",
     parentId: "feat-1",
     labels: ["Requisitos"],
     updatedAt: "2026-08-27T00:00:00Z",
   });
   const usNew = us({
     externalId: "us-new",
-    title: "[QA] US_LIV_001 — versão nova",
+    title: "[QA] US_PED_001 — versão nova",
     parentId: "feat-1",
     labels: ["Requisitos"],
     updatedAt: "2026-09-01T00:00:00Z",

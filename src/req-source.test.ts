@@ -5,22 +5,22 @@ import { parseReqSource, projectSlugFromReqInput, looksLikeGitReqs } from "./req
 
 describe("parseReqSource", () => {
   it("aceita pasta local", () => {
-    const input = resolve("docs", "Portal-Rural", "requisitos");
+    const input = resolve("docs", "MeuProduto", "requisitos");
     const s = parseReqSource(input);
     assert.equal(s.kind, "local");
     if (s.kind === "local") assert.equal(s.path, input);
-    assert.equal(projectSlugFromReqInput(input), "Portal-Rural");
+    assert.equal(projectSlugFromReqInput(input), "MeuProduto");
   });
 
   it("parseia GitHub tree com pasta", () => {
-    const s = parseReqSource("https://github.com/org/Portal-Rural/tree/main/docs/requisitos");
+    const s = parseReqSource("https://github.com/org/MeuProduto/tree/main/docs/requisitos");
     assert.equal(s.kind, "git");
     if (s.kind !== "git") return;
-    assert.equal(s.cloneUrl, "https://github.com/org/Portal-Rural.git");
+    assert.equal(s.cloneUrl, "https://github.com/org/MeuProduto.git");
     assert.equal(s.ref, "main");
     assert.equal(s.subdir, "docs/requisitos");
-    assert.equal(s.repo, "Portal-Rural");
-    assert.equal(projectSlugFromReqInput(s.original), "Portal-Rural");
+    assert.equal(s.repo, "MeuProduto");
+    assert.equal(projectSlugFromReqInput(s.original), "MeuProduto");
   });
 
   it("parseia GitHub blob usando a pasta do arquivo", () => {
@@ -42,14 +42,14 @@ describe("parseReqSource", () => {
 
   it("parseia Azure DevOps path e branch", () => {
     const s = parseReqSource(
-      "https://dev.azure.com/org/proj/_git/Portal-Rural?path=/docs/requisitos&version=GBmain",
+      "https://dev.azure.com/org/proj/_git/MeuProduto?path=/docs/requisitos&version=GBmain",
     );
     assert.equal(s.kind, "git");
     if (s.kind !== "git") return;
-    assert.equal(s.cloneUrl, "https://dev.azure.com/org/proj/_git/Portal-Rural");
+    assert.equal(s.cloneUrl, "https://dev.azure.com/org/proj/_git/MeuProduto");
     assert.equal(s.ref, "main");
     assert.equal(s.subdir, "docs/requisitos");
-    assert.equal(s.repo, "Portal-Rural");
+    assert.equal(s.repo, "MeuProduto");
   });
 
   it("parseia GitLab grupo aninhado com /-/tree/", () => {

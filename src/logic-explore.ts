@@ -26,6 +26,15 @@ export type ExploreResult = {
   routes?: ExploreRoute[];
 };
 
+/** Heading de tela que pede escolher empresa/conta/workspace depois do login. */
+export const CONTEXT_PICKER_HEADING =
+  /(selecion(ar|e)|escolh(er|a)|select|choose)\s+(o |a |um |uma |your |an? )?(contexto|empresa|conta|organiza|workspace|perfil|unidade|tenant|context|account|organization|company|profile)/i;
+
+/** Nome do contexto a escolher (E2E_CONTEXT no .env); vazio = primeiro botão da tela. */
+export function preferredContextName(): string {
+  return process.env.E2E_CONTEXT?.trim() ?? "";
+}
+
 export async function tryLogin(page: Page, creds: { authKind: AuthKind; login: string; senha: string }): Promise<boolean> {
   const loginBox = page
     .getByLabel(/e-?mail|usu[aá]rio|usuario|cpf|login|documento/i)

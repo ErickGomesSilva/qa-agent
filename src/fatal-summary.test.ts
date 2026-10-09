@@ -9,8 +9,8 @@ describe("buildFatalSummary", () => {
       status: "error",
       createdAt: "2026-09-10T17:07:18.403Z",
       updatedAt: "2026-09-10T21:57:09.836Z",
-      requisitosPath: "C:/tmp/Portal-Rural/requisitos",
-      projectPath: "C:/tmp/data/projects/cernova-centralXML",
+      requisitosPath: "C:/tmp/MeuProduto/requisitos",
+      projectPath: "C:/tmp/data/projects/MeuProduto",
       error: "Run do agente falhou: run-39477bd8-ebfa-4861-8cfa-298cb936d7f1",
       rounds: 0,
       log: [

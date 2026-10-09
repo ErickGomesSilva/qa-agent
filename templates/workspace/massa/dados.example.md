@@ -6,12 +6,12 @@ Edite ou copie para `dados.md`. O QA Agent também grava `dados.json` em runtime
 perfil: validador
 accessLabel: validador
 status: pronto
-precisa: Equipe rural ou produtor tenta conceder validador
+precisa: Operador tenta conceder o perfil validador
 
 concessao_tipo: validador
-actor_perfil: equipe_rural
+actor_perfil: operador
 
-## US_LCD_004 CA03
+## US_DOC_004 CA03
 perfil: revisor
 accessLabel: revisor
 status: pronto

@@ -3,7 +3,11 @@ import { join } from "node:path";
 import { chromium, type Page } from "playwright-core";
 import { config } from "./config.ts";
 import { pathInEscopo, type RunEscopo } from "./escopo.ts";
-import { tryLogin, type ExploreIssue, type ExploreResult, type ExploreRoute } from "./logic-explore.ts";
+import {
+  CONTEXT_PICKER_HEADING,
+  preferredContextName,
+  tryLogin,
+  type ExploreIssue, type ExploreResult, type ExploreRoute } from "./logic-explore.ts";
 import type { AccessCredential } from "./types.ts";
 import { scriptsDir } from "./workspace.ts";
 
@@ -75,9 +79,12 @@ function jsonCodigo(body: string): string | undefined {
 }
 
 async function maybeSelectContext(page: Page): Promise<void> {
-  const heading = page.getByRole("heading", { name: /selecionar contexto|escolher (empresa|fazenda|conta)/i });
+  const heading = page.getByRole("heading", { name: CONTEXT_PICKER_HEADING }).first();
   if (!(await heading.isVisible({ timeout: 2500 }).catch(() => false))) return;
-  const btn = page.getByRole("button").filter({ hasNotText: /sair|cancelar|voltar/i }).first();
+  const wanted = preferredContextName();
+  const btn = wanted
+    ? page.getByRole("button", { name: wanted }).first()
+    : page.getByRole("button").filter({ hasNotText: /sair|logout|cancelar|cancel|voltar|back/i }).first();
   if (await btn.isVisible().catch(() => false)) {
     await btn.click({ timeout: 4000 }).catch(() => undefined);
     await page.waitForLoadState("domcontentloaded", { timeout: 8000 }).catch(() => undefined);

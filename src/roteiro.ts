@@ -51,18 +51,43 @@ export type RoteiroFile = {
 };
 
 const ROLE_HINTS = [
-  "produtor",
   "operador",
   "validador",
   "administrador",
   "admin",
   "gestor",
-  "veterinario",
+  "supervisor",
+  "coordenador",
+  "analista",
   "visitante",
   "cliente",
   "auditor",
   "revisor",
 ];
+
+/** "perfil X", "papel X", "role X": o papel vem do próprio requisito, sem lista de domínio. */
+const ROLE_PHRASE = /\b(?:perfil|papel|role|profile)\s+(?:de |do |da |of )?([a-z][a-z_-]{3,})/g;
+const NOT_A_ROLE = new Set([
+  "acesso",
+  "usuario",
+  "usuarios",
+  "logado",
+  "ativo",
+  "inativo",
+  "atual",
+  "correto",
+  "selecionado",
+  "autorizado",
+  "permissao",
+  "diferente",
+  "outro",
+  "nenhum",
+  "qualquer",
+  "proprio",
+  "access",
+  "user",
+  "other",
+]);
 
 function fold(s: string): string {
   return s
@@ -92,6 +117,11 @@ export function citedRoles(text: string, f5Labels: string[]): string[] {
       const labeled = f5Labels.find((l) => fold(l) === hint);
       push(labeled ?? hint);
     }
+  }
+  for (const m of f.matchAll(ROLE_PHRASE)) {
+    const role = m[1]!;
+    if (NOT_A_ROLE.has(role)) continue;
+    push(f5Labels.find((l) => fold(l) === role) ?? role);
   }
   return found;
 }

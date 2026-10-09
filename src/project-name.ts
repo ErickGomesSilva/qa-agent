@@ -1,4 +1,4 @@
-/** Nome do projeto para arquivos de resumo (ex.: Portal-Rural). */
+/** Nome do projeto para arquivos de resumo (ex.: MeuProduto). */
 export function projectSlugFromPath(requisitosPath: string): string {
   const normalized = requisitosPath.replace(/\\/g, "/").replace(/\/+$/, "");
   const parts = normalized.split("/").filter(Boolean);

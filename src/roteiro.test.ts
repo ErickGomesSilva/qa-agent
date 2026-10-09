@@ -124,7 +124,7 @@ describe("joinRoteiro", () => {
 
 describe("permissionCoverageWarning", () => {
   it("avisa quando ha um acesso e as US citam dois papeis", () => {
-    const text = "US_A perfil operador consulta. US_B perfil produtor consulta.";
+    const text = "US_A perfil operador consulta. US_B perfil financeiro consulta.";
     const roles = citedRoles(text, ["operador"]);
     const aviso = permissionCoverageWarning(roles, 1);
     assert.ok(aviso);
@@ -132,7 +132,7 @@ describe("permissionCoverageWarning", () => {
   });
 
   it("nao avisa com dois acessos para dois papeis", () => {
-    const aviso = permissionCoverageWarning(["operador", "produtor"], 2);
+    const aviso = permissionCoverageWarning(["operador", "financeiro"], 2);
     assert.equal(aviso, undefined);
   });
 });

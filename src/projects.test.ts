@@ -6,7 +6,7 @@ import { projectSlugFromPath, slugifyProject } from "./project-name.ts";
 
 describe("projeto / slug", () => {
   it("slug sai da pasta pai de requisitos", () => {
-    assert.equal(projectSlugFromPath("C:/repos/Portal-Rural/requisitos"), "Portal-Rural");
+    assert.equal(projectSlugFromPath("C:/repos/MeuProduto/requisitos"), "MeuProduto");
     assert.equal(slugifyProject("Cliente X"), "Cliente-X");
   });
 
@@ -37,7 +37,7 @@ describe("generatedCleanupTargets", () => {
 
 describe("workspacePathFor", () => {
   it("projeto nomeado vai para data/projects", () => {
-    const p = workspacePathFor("Portal-Rural").replace(/\\/g, "/");
-    assert.match(p, /data\/projects\/Portal-Rural$/);
+    const p = workspacePathFor("MeuProduto").replace(/\\/g, "/");
+    assert.match(p, /data\/projects\/MeuProduto$/);
   });
 });

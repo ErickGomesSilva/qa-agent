@@ -2,6 +2,18 @@ import { type Locator, type Page, expect } from "@playwright/test";
 import { e2eAccessEnv } from "./access";
 import { e2eEnv } from "./env";
 
+/** Rotas e contexto da aplicação sob teste. Ajuste pelo .env do QA Agent, sem editar este arquivo. */
+const LOGIN_PATH = process.env.E2E_LOGIN_PATH?.trim() || "/login";
+const HOME_PATH = process.env.E2E_HOME_PATH?.trim() || "/";
+const CONTEXT_NAME = process.env.E2E_CONTEXT?.trim() || "";
+
+const USER_FIELD = /e-?mail|usu[aá]rio|login|user ?name|cpf|documento/i;
+const PASSWORD_FIELD = /senha|password/i;
+const SUBMIT = /entrar|acessar|login|log in|sign in|continuar|continue/i;
+const CONTEXT_PICKER =
+  /(selecion(ar|e)|escolh(er|a)|select|choose)\s+(o |a |um |uma |your |an? )?(contexto|empresa|conta|organiza|workspace|perfil|unidade|tenant|context|account|organization|company|profile)/i;
+const NOT_A_CONTEXT = /sair|logout|sign.?out|cancelar|cancel|voltar|back/i;
+
 async function fillCredential(field: Locator, value: string): Promise<void> {
   await field.click();
   await field.fill("");
@@ -9,18 +21,31 @@ async function fillCredential(field: Locator, value: string): Promise<void> {
   await expect(field).toHaveValue(value, { timeout: 2_000 });
 }
 
+async function firstVisible(candidates: Locator[]): Promise<Locator | undefined> {
+  for (const c of candidates) {
+    const el = c.first();
+    if (await el.isVisible().catch(() => false)) return el;
+  }
+  return undefined;
+}
+
+function onLoginPath(page: Page): boolean {
+  try {
+    return new URL(page.url()).pathname.startsWith(LOGIN_PATH);
+  } catch {
+    return false;
+  }
+}
+
 /** Indica se a pagina ja parece autenticada (sessao ou storageState). */
 export async function isAuthenticated(page: Page): Promise<boolean> {
-  const url = page.url();
-  if (url.includes("/login")) return false;
-  const inApp =
-    /\/app(\/|$)/.test(url) ||
-    (await page
-      .getByRole("link", { name: /Documentos|Financeiro|Visão geral|LCDPR/i })
-      .first()
-      .isVisible()
-      .catch(() => false));
-  return inApp;
+  if (!/^https?:/.test(page.url()) || onLoginPath(page)) return false;
+  const passwordVisible = await page
+    .locator('input[type="password"]')
+    .first()
+    .isVisible()
+    .catch(() => false);
+  return !passwordVisible;
 }
 
 export async function login(page: Page, opts?: { force?: boolean }): Promise<void> {
@@ -35,32 +60,40 @@ export async function loginAs(
   const env = typeof access === "number" && access <= 1 ? e2eEnv() : e2eAccessEnv(access);
 
   if (!opts?.force) {
-    await page.goto("/app");
+    await page.goto(HOME_PATH);
     if (await isAuthenticated(page)) return;
-    if (!page.url().includes("/login")) {
-      const home = page.getByRole("heading", { name: /Visão geral|Selecionar contexto/i });
-      if (await home.isVisible({ timeout: 3_000 }).catch(() => false)) return;
-    }
   }
 
   const maxAttempts = 3;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    await page.goto("/login");
-    await page.getByRole("button", { name: "Entrar" }).waitFor({ state: "visible" });
-    const emailField = page.getByLabel("E-mail");
-    const cpfField = page.getByLabel("CPF");
-    const passwordField = page.getByLabel("Senha");
-    if (env.authKind === "cpf" && (await cpfField.count()) > 0) {
-      await fillCredential(cpfField, env.cpf || env.login);
-    } else {
-      await fillCredential(emailField, env.email || env.login);
-    }
-    await fillCredential(passwordField, env.senha);
-    await page.getByRole("button", { name: "Entrar" }).click();
+    await page.goto(LOGIN_PATH);
+    const password = page.getByLabel(PASSWORD_FIELD).or(page.locator('input[type="password"]')).first();
+    await password.waitFor({ state: "visible" });
+
+    const preferred = env.authKind === "cpf" ? /cpf|documento/i : /e-?mail/i;
+    const user = await firstVisible([
+      page.getByLabel(preferred),
+      page.getByPlaceholder(preferred),
+      page.getByLabel(USER_FIELD),
+      page.getByPlaceholder(USER_FIELD),
+      page.locator('input[type="email"], input[name*="user" i], input[name*="login" i]'),
+    ]);
+    if (!user) throw new Error(`Campo de usuario nao encontrado em ${LOGIN_PATH}. Ajuste E2E_LOGIN_PATH no .env.`);
+
+    const userValue = env.authKind === "cpf" ? env.cpf || env.login : env.email || env.login;
+    await fillCredential(user, userValue);
+    await fillCredential(password, env.senha);
+
+    const submit = await firstVisible([
+      page.locator('form button[type="submit"], form input[type="submit"]'),
+      page.getByRole("button", { name: SUBMIT }),
+    ]);
+    if (submit) await submit.click();
+    else await password.press("Enter");
 
     try {
-      await page.waitForURL((url) => !url.pathname.includes("/login"), { timeout: 15_000 });
+      await expect(password).toBeHidden({ timeout: 15_000 });
       return;
     } catch (error) {
       if (attempt === maxAttempts) throw error;
@@ -69,13 +102,32 @@ export async function loginAs(
   }
 }
 
-export async function selectContext(page: Page, contextName = /Fazenda Horizonte/i): Promise<void> {
-  const ctxBtn = page.getByRole("button", { name: contextName });
-  const visible = await ctxBtn.isVisible({ timeout: 3_000 }).catch(() => false);
-  if (visible) {
-    await ctxBtn.click();
-    await page.waitForURL(/\/app/, { timeout: 10_000 });
-    await page.getByRole("heading", { name: /Visão geral|Selecionar contexto/i }).waitFor({ timeout: 10_000 });
+/**
+ * Escolhe o contexto (empresa, conta, workspace...) quando a aplicacao pede depois do login.
+ * Com E2E_CONTEXT no .env, clica nesse nome; sem ele, clica no primeiro botao da tela de escolha.
+ */
+export async function selectContext(
+  page: Page,
+  contextName: string | RegExp | undefined = CONTEXT_NAME || undefined,
+): Promise<void> {
+  if (contextName) {
+    const target = page
+      .getByRole("button", { name: contextName })
+      .or(page.getByRole("option", { name: contextName }))
+      .or(page.getByRole("link", { name: contextName }))
+      .first();
+    if (await target.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      await target.click();
+      await page.waitForLoadState("domcontentloaded").catch(() => undefined);
+    }
+    return;
+  }
+  const picker = page.getByRole("heading", { name: CONTEXT_PICKER }).first();
+  if (!(await picker.isVisible({ timeout: 2_000 }).catch(() => false))) return;
+  const first = page.getByRole("button").filter({ hasNotText: NOT_A_CONTEXT }).first();
+  if (await first.isVisible().catch(() => false)) {
+    await first.click();
+    await page.waitForLoadState("domcontentloaded").catch(() => undefined);
   }
 }
 
