@@ -28,6 +28,7 @@ Não apaga .env, settings, nem credenciais.md:
 Outros:
   --plain --reconfigure
   --audit-only  --deepen-stubs  --unblock-massa  --tour  --load-only
+  --map-roteiro  --scripts-only  --tests-only
 `);
 }
 

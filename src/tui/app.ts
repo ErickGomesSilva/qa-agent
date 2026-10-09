@@ -31,6 +31,8 @@ import {
   buildRunBody,
   currentCredentialsDraft,
   currentOptionsDraft,
+  cycleMissionStage,
+  MISSION_STAGES,
   type AccessDraft,
   type CredsSource,
   type OptionsDraft,
@@ -176,6 +178,7 @@ type State = {
   modelIndex: number;
   modelsLoading: boolean;
   regenerate: boolean;
+  missionStage: (typeof MISSION_STAGES)[number];
   running: boolean;
   spin: boolean;
   tick: number;
@@ -265,6 +268,7 @@ function seedState(): State {
     modelIndex: 0,
     modelsLoading: false,
     regenerate: false,
+    missionStage: "full",
     running: false,
     spin: false,
     tick: 0,
@@ -456,6 +460,18 @@ function boardLines(state: State, width: number): string[] {
   lines.push(
     `${ink("▸", theme.accent)} ${ink(t("app.specs", { n: listSpecFiles().length, regen, slug: config.projectSlug }), theme.fg)} ${ink("(R)", theme.muted)}`,
   );
+  const stageKey = {
+    full: "app.stage.full",
+    "map-roteiro": "app.stage.map-roteiro",
+    scripts: "app.stage.scripts",
+    "tests-only": "app.stage.tests-only",
+  } as const;
+  const stageParts = MISSION_STAGES.map((id, i) => {
+    const label = `${i + 1} ${t(stageKey[id])}`;
+    return id === state.missionStage ? ink(`[${label}]`, theme.accentHi) : ink(label, theme.muted);
+  });
+  lines.push(`${ink("▸", theme.accent)} ${stageParts.join(ink("   ", theme.muted))}`);
+  lines.push(ink(`  ${t("app.stageHint")}`, theme.muted));
   lines.push(
     `${ink("·", theme.muted)} ${ink(
       t("app.k6AfterPw", {
@@ -1480,7 +1496,7 @@ async function runApp(state: State): Promise<void> {
     state.flashErr = true;
     return;
   }
-  const body = buildRunBody(state.regenerate);
+  const body = buildRunBody(state.regenerate, state.missionStage);
   state.running = true;
   state.log = [];
   clearAgentTelemetry();
@@ -1511,7 +1527,7 @@ async function runApp(state: State): Promise<void> {
       }),
     );
     state.flash = t("app.end", { status: run.status, extra: "" });
-    state.flashErr = !["passed"].includes(run.status);
+    state.flashErr = !["passed", "map_complete", "scripts_complete", "complete_with_findings"].includes(run.status);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     state.log.push(t("app.error", { msg }));
@@ -2011,6 +2027,18 @@ export async function runTui(): Promise<void> {
               return;
             }
           }
+          paint(state);
+          return;
+        }
+
+        if (id === "app" && key.type === "char" && "1234".includes(key.ch)) {
+          state.missionStage = MISSION_STAGES[Number(key.ch) - 1]!;
+          paint(state);
+          return;
+        }
+
+        if (id === "app" && (key.type === "left" || key.type === "right")) {
+          state.missionStage = cycleMissionStage(state.missionStage, key.type === "right" ? 1 : -1);
           paint(state);
           return;
         }

@@ -10,6 +10,9 @@ export type TriageClass =
 
 export type RunMode =
   | "full"
+  | "map-roteiro"
+  | "scripts"
+  | "tests-only"
   | "audit-only"
   | "deepen-stubs"
   | "unblock-massa"
@@ -21,6 +24,8 @@ export type RunStatus =
   | "queued"
   | "generating_scripts"
   | "exploring_logic"
+  | "map_complete"
+  | "scripts_complete"
   | "touring"
   | "tour_complete"
   | "auditing_coverage"

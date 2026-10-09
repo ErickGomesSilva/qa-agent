@@ -583,25 +583,51 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
   await ensureChromium(log);
   throwIfCancelled(run);
 
+  const testsOnly = run.mode === "tests-only";
+  const mapOnly = run.mode === "map-roteiro";
+  const scriptsOnly = run.mode === "scripts";
+
+  let explore: import("./logic-explore.ts").ExploreResult | undefined;
+
+  if (testsOnly) {
+    if (listSpecFiles().length === 0) {
+      run.status = "error";
+      run.error = "Etapa testes: nenhum spec em scripts/tests. Rode antes a etapa Scripts (F8 tecla 3).";
+      log(run.error);
+      saveRun(run);
+      return;
+    }
+    if (run.regenerate) log("R ignorado na etapa testes — não refaz mapa nem specs");
+    log("etapa testes — pulando mapa, roteiro, geração de specs e agente de lógica");
+  } else {
   run.status = "exploring_logic";
   saveRun(run);
   log("▸ fase: Mapa por perfil — Playwright (menu, controles, HTTP 4xx) antes de gerar specs");
   const escopo = loadRunEscopo();
   const mapAccesses = filterAccessesByEscopo(creds.accesses, escopo);
-  const { explore, mapReused, roteiroReused } = await ensureMapAndRoteiro({
+  const mapped = await ensureMapAndRoteiro({
     baseUrl: creds.baseUrl,
     accesses: mapAccesses,
     allAccessesForLabels: creds.accesses,
     escopo,
-    force: run.regenerate,
+    force: run.regenerate && !scriptsOnly,
     onLog: log,
   });
-  if (mapReused && roteiroReused) {
+  explore = mapped.explore;
+  if (mapped.mapReused && mapped.roteiroReused) {
     log("▸ fase: Mapa/roteiro — reutilizados (sem novo crawl)");
-  } else if (mapReused) {
+  } else if (mapped.mapReused) {
     log("▸ fase: Mapa reutilizado — roteiro atualizado");
   }
   throwIfCancelled(run);
+
+  if (mapOnly) {
+    run.status = "map_complete";
+    log("etapa mapa+roteiro concluída. Specs e Playwright não rodaram.");
+    log("próximo: F8 tecla 3 (Scripts) para gerar os testes sem refazer o crawl.");
+    saveRun(run);
+    return;
+  }
 
   const specsBefore = listSpecFiles();
   if (specsBefore.length === 0 || run.regenerate) {
@@ -626,8 +652,18 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
   }
   throwIfCancelled(run);
 
+  if (scriptsOnly) {
+    run.status = "scripts_complete";
+    log("etapa scripts concluída. Agente de lógica, jornada e Playwright não rodaram.");
+    log("próximo: F8 tecla 4 (Testes) para executar os specs sem refazer mapa nem geração.");
+    saveRun(run);
+    return;
+  }
+
   if (run.skipLogicAgent) {
     log("retomada: pulando agente de lógica / RNs (CONTINUAR.md)");
+  } else if (!explore) {
+    log("agente de lógica pulado — mapa não produzido nesta etapa");
   } else {
     await runLogicAgent({
       baseUrl: creds.baseUrl,
@@ -652,6 +688,7 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
     log("retomada: pulando jornada (CONTINUAR.md)");
   }
   throwIfCancelled(run);
+  }
 
   log("▸ fase: Auditoria — classificando cobertura dos CAs");
   const audit = await runCoverageAuditPhase(run, log);

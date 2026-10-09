@@ -19,6 +19,9 @@ async function runPlain(): Promise<void> {
   const unblockMassa = process.argv.includes("--unblock-massa");
   const userTour = process.argv.includes("--tour");
   const loadOnly = process.argv.includes("--load-only");
+  const mapRoteiro = process.argv.includes("--map-roteiro");
+  const scriptsOnly = process.argv.includes("--scripts-only");
+  const testsOnly = process.argv.includes("--tests-only");
   const rl = createRl();
   try {
     printBanner();
@@ -30,6 +33,9 @@ async function runPlain(): Promise<void> {
     else if (unblockMassa) body.mode = "unblock-massa";
     else if (userTour) body.mode = "user-tour";
     else if (loadOnly) body.mode = "load-only";
+    else if (mapRoteiro) body.mode = "map-roteiro";
+    else if (scriptsOnly) body.mode = "scripts";
+    else if (testsOnly) body.mode = "tests-only";
     print();
     printSection(t("cli.starting"));
     printKv(t("cli.reqs"), body.requisitosPath ?? "");

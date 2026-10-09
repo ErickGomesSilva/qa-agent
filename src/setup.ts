@@ -704,7 +704,15 @@ export function saveOptions(opts: OptionsDraft): void {
   );
 }
 
-export function buildRunBody(regenerate: boolean): CreateRunBody {
+export const MISSION_STAGES = ["full", "map-roteiro", "scripts", "tests-only"] as const;
+export type MissionStage = (typeof MISSION_STAGES)[number];
+
+export function cycleMissionStage(current: MissionStage, dir: 1 | -1): MissionStage {
+  const i = Math.max(0, MISSION_STAGES.indexOf(current));
+  return MISSION_STAGES[(i + dir + MISSION_STAGES.length) % MISSION_STAGES.length]!;
+}
+
+export function buildRunBody(regenerate: boolean, mode?: import("./types.ts").RunMode): CreateRunBody {
   const missing = missingConfig();
   if (missing.length) {
     throw new Error(t("err.missing", { list: missing.join(", ") }));
@@ -729,6 +737,7 @@ export function buildRunBody(regenerate: boolean): CreateRunBody {
     continueOnProduto: config.continueOnProduto,
     retestQuarantine: config.retestQuarantine,
     regenerate,
+    mode,
   };
 }
 
