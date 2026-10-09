@@ -16,5 +16,7 @@ blob-report/
 playwright/.cache/
 .auth/
 *.pem
+.cursor/handoffs/
+.agents/
 Thumbs.db
 .DS_Store
