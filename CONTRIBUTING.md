@@ -22,8 +22,8 @@ Do not commit `.env`, `data/`, or credential files.
 ## Security check
 
 ```bash
-npm run security-check          # arquivos staged (mesmo que o pre-commit)
-npm run security-check -- --all # working tree inteiro
+npm run security-check          # staged files (same as the pre-commit hook)
+npm run security-check -- --all # whole working tree
 ```
 
 The pre-commit hook blocks staged `.env`, `data/`, `credenciais.*`, `mcp.json`, `.auth/`, `.pem`, and obvious secret patterns. Bypass only when you are certain: `git commit --no-verify`.
@@ -44,6 +44,7 @@ If you develop from the one-line install path (`%LOCALAPPDATA%\qa-agent` or `~/.
 - Do not add credentials, customer requirements, or run artifacts from `data/` (`data/projects/` included).
 - Do not weaken skip/massa honesty: if a CA cannot be asserted in the UI, keep it `@rascunho`, `@massa`, or `@sem-ui` with a reason.
 - TUI strings go through `src/i18n.ts` (pt-BR **and** en-US).
+- User-facing changes update `README.md` **and** `README.pt-BR.md` (same sections) and get a line in `CHANGELOG.md`.
 
 ## Useful commands
 
@@ -51,7 +52,7 @@ If you develop from the one-line install path (`%LOCALAPPDATA%\qa-agent` or `~/.
 |---|---|
 | `npm start` | TUI / CLI |
 | `npm run typecheck` | TypeScript |
-| `npm test` | Unit tests (roteiro, impediments, projects) |
+| `npm test` | Unit tests (roteiro, cache, impediments, projects, resume/pause guides, requirements/MCP, Plane adapter, Bug sync). New `*.test.ts` files must be added to the `test` script in `package.json` |
 | `qaagent --clean` | Wipe generated specs/reports/mass for the current project |
 | `npm run audit` | Coverage audit |
 | `npm run tour` | Headed browser tour |
