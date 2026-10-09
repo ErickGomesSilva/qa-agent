@@ -63,7 +63,7 @@ export function writeAmbienteTriage(
     "",
     "- Revise F1/F2 (chave/modelo), rede/VPN, Chromium (`npx playwright install chromium`).",
     "- Evidência da falha Playwright (se houver): `scripts/falhas/ULTIMA-FALHA.log`.",
-    "- Depois: Enter na F8 com regenerar=nao para retomar.",
+    "- Depois: F7 Refazer = não e Enter na F8 para retomar.",
     "",
   ].join("\n");
   writeFileSync(join(falhas, "AVISO-AMBIENTE.md"), aviso, "utf8");

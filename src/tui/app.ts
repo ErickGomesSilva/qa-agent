@@ -22,7 +22,7 @@ import {
 import { config } from "../config.ts";
 import type { CoverageReportDetail } from "../coverage-report.ts";
 import { existsSync, readFileSync } from "node:fs";
-import { getLocale, isScriptNotice, t, type Locale } from "../i18n.ts";
+import { getLocale, isScriptNotice, t, type Locale, type MsgKey } from "../i18n.ts";
 import { loadSettings } from "../settings.ts";
 import {
   addEvidence,
@@ -32,7 +32,12 @@ import {
   currentCredentialsDraft,
   currentOptionsDraft,
   cycleMissionStage,
+  missionStageMsgKey,
   MISSION_STAGES,
+  patchSettings,
+  stageUses,
+  type MissionStage,
+  type StageToggle,
   type AccessDraft,
   type CredsSource,
   type OptionsDraft,
@@ -267,8 +272,8 @@ function seedState(): State {
     models: [],
     modelIndex: 0,
     modelsLoading: false,
-    regenerate: false,
-    missionStage: "full",
+    regenerate: opt.regenerate,
+    missionStage: opt.missionStage,
     running: false,
     spin: false,
     tick: 0,
@@ -440,6 +445,42 @@ function refreshReports(state: State): void {
   state.reportIndex = Math.min(state.reportIndex, Math.max(0, state.reports.length - 1));
 }
 
+function missionFlags(state: State): { toggle: StageToggle; on: boolean; label: string }[] {
+  return [
+    { toggle: "k6", on: state.draft.k6Enabled, label: "k6" },
+    { toggle: "massa", on: state.draft.massaEnabled, label: "massa" },
+    { toggle: "tour", on: state.draft.tourEnabled, label: "tour" },
+    { toggle: "headed", on: state.draft.headed, label: "headed" },
+    { toggle: "continueOnProduto", on: state.draft.continueOnProduto, label: "PRODUTO" },
+    { toggle: "retest", on: state.draft.retestQuarantine, label: "★" },
+    { toggle: "autoResume", on: state.draft.autoResume, label: "resume" },
+  ];
+}
+
+function effectiveOptionsLine(state: State): string {
+  const yn = (on: boolean) => (on ? t("common.yes") : t("common.no"));
+  const parts = missionFlags(state)
+    .filter((f) => stageUses(state.missionStage, f.toggle))
+    .map((f) => `${f.label}=${yn(f.on)}`);
+  if (stageUses(state.missionStage, "grep")) {
+    const g = state.draft.grep.trim();
+    parts.push(`grep=${g && g !== "-" ? g : t("opcoes.allTests")}`);
+  }
+  return parts.join("  ");
+}
+
+function skippedOptionLabels(state: State): string[] {
+  const skipped = missionFlags(state)
+    .filter((f) => !stageUses(state.missionStage, f.toggle) && f.on)
+    .map((f) => f.label);
+  if (state.regenerate && !stageUses(state.missionStage, "regenerate")) skipped.unshift(t("opcoes.regen"));
+  return skipped;
+}
+
+function rememberMission(state: State): void {
+  patchSettings({ missionStage: state.missionStage, regenerate: state.regenerate });
+}
+
 function boardLines(state: State, width: number): string[] {
   const lines: string[] = [];
   for (const w of wrapVisible(t("app.intro"), Math.max(12, width))) {
@@ -456,33 +497,20 @@ function boardLines(state: State, width: number): string[] {
     lines.push(`${lamp} ${fkey} ${title} ${summary}`);
   }
   lines.push("");
-  const regen = state.regenerate ? t("app.regenYes") : t("common.no");
+  const stage = state.missionStage;
+  const regenOn = stageUses(stage, "regenerate") && state.regenerate;
   lines.push(
-    `${ink("▸", theme.accent)} ${ink(t("app.specs", { n: listSpecFiles().length, regen, slug: config.projectSlug }), theme.fg)} ${ink("(R)", theme.muted)}`,
+    `${ink("▸", theme.accent)} ${ink(t("app.stageNow", { stage: t(missionStageMsgKey(stage)) }), theme.accentHi)} ${ink("(F7)", theme.muted)}`,
   );
-  const stageKey = {
-    full: "app.stage.full",
-    "map-roteiro": "app.stage.map-roteiro",
-    scripts: "app.stage.scripts",
-    "tests-only": "app.stage.tests-only",
-  } as const;
-  const stageParts = MISSION_STAGES.map((id, i) => {
-    const label = `${i + 1} ${t(stageKey[id])}`;
-    return id === state.missionStage ? ink(`[${label}]`, theme.accentHi) : ink(label, theme.muted);
-  });
-  lines.push(`${ink("▸", theme.accent)} ${stageParts.join(ink("   ", theme.muted))}`);
-  lines.push(ink(`  ${t("app.stageHint")}`, theme.muted));
+  lines.push(ink(`  ${t("app.stageReadonly")}`, theme.muted));
   lines.push(
-    `${ink("·", theme.muted)} ${ink(
-      t("app.k6AfterPw", {
-        k6: state.draft.k6Enabled ? t("common.yes") : t("common.no"),
-        massa: state.draft.massaEnabled ? t("common.yes") : t("common.no"),
-        tour: state.draft.tourEnabled ? t("common.yes") : t("common.no"),
-        headed: state.draft.headed ? t("common.yes") : t("common.no"),
-      }),
-      theme.muted,
-    )} ${ink("(F7)", theme.muted)}`,
+    `${ink("▸", theme.accent)} ${ink(t("app.specs", { n: listSpecFiles().length, regen: regenOn ? t("app.regenYes") : t("common.no"), slug: config.projectSlug }), theme.fg)}`,
   );
+  lines.push(`${ink("·", theme.muted)} ${ink(effectiveOptionsLine(state), theme.muted)}`);
+  const skipped = skippedOptionLabels(state);
+  if (skipped.length) {
+    lines.push(ink(`  ${t("app.ignored", { list: skipped.join(", ") })}`, theme.warn));
+  }
   const miss = missingConfig();
   lines.push("");
   const recent = state.reports.slice(0, 3);
@@ -1195,33 +1223,49 @@ function tabBody(state: State, id: StepId, width: number, bodyRows: number): str
     lines.push("");
     lines.push(choiceRow(t("opcoes.language"), langChips(getLocale()), state.field === 0, t("help.hint12")));
     lines.push("");
-    const runAll = state.draft.runAll ? chip(t("opcoes.runAllOn"), true) : chip(t("opcoes.runAllOff"), true);
-    lines.push(choiceRow(t("opcoes.runAll"), [runAll], state.field === 1, t("help.space")));
+    const stageParts = MISSION_STAGES.map((sid, i) => {
+      const label = `${i + 1} ${t(missionStageMsgKey(sid))}`;
+      return chip(label, sid === state.missionStage);
+    });
+    lines.push(choiceRow(t("opcoes.stage"), stageParts, state.field === 1, t("opcoes.stageHint")));
+    lines.push(ink(`  ${t(stageNoteKey(state.missionStage))}`, theme.muted));
     lines.push("");
-    const ar = state.draft.autoResume ? chip(t("opcoes.resumeOn"), true) : chip(t("opcoes.resumeOff"), true);
-    lines.push(choiceRow(t("opcoes.autoResume"), [ar], state.field === 2, t("help.space")));
+    const regenOn = stageUses(state.missionStage, "regenerate") && state.regenerate;
+    lines.push(
+      choiceRow(
+        t("opcoes.regen"),
+        [chip(regenLabel(state.missionStage, regenOn), state.field === 2)],
+        state.field === 2,
+        stageUses(state.missionStage, "regenerate")
+          ? t("help.space")
+          : `${t("help.space")} · ${t("opcoes.skipped")}`,
+      ),
+    );
     lines.push("");
-    const k6 = state.draft.k6Enabled ? chip(t("opcoes.k6On"), true) : chip(t("opcoes.k6Off"), true);
-    lines.push(choiceRow(t("opcoes.k6"), [k6], state.field === 3, t("help.space")));
+    lines.push(optRow(state, t("opcoes.runAll"), [state.draft.runAll ? chip(t("opcoes.runAllOn"), true) : chip(t("opcoes.runAllOff"), true)], 3, true));
     lines.push("");
-    const massa = state.draft.massaEnabled ? chip(t("opcoes.massaOn"), true) : chip(t("opcoes.massaOff"), true);
-    lines.push(choiceRow(t("opcoes.massa"), [massa], state.field === 4, t("help.space")));
+    lines.push(optRow(state, t("opcoes.autoResume"), [state.draft.autoResume ? chip(t("opcoes.resumeOn"), true) : chip(t("opcoes.resumeOff"), true)], 4, stageUses(state.missionStage, "autoResume")));
     lines.push("");
-    const tour = state.draft.tourEnabled ? chip(t("opcoes.tourOn"), true) : chip(t("opcoes.tourOff"), true);
-    lines.push(choiceRow(t("opcoes.tour"), [tour], state.field === 5, t("help.space")));
+    lines.push(optRow(state, t("opcoes.k6"), [state.draft.k6Enabled ? chip(t("opcoes.k6On"), true) : chip(t("opcoes.k6Off"), true)], 5, stageUses(state.missionStage, "k6")));
     lines.push("");
-    const headed = state.draft.headed ? chip(t("opcoes.headedOn"), true) : chip(t("opcoes.headedOff"), true);
-    lines.push(choiceRow(t("opcoes.headed"), [headed], state.field === 6, t("help.space")));
+    lines.push(optRow(state, t("opcoes.massa"), [state.draft.massaEnabled ? chip(t("opcoes.massaOn"), true) : chip(t("opcoes.massaOff"), true)], 6, stageUses(state.missionStage, "massa")));
+    lines.push("");
+    lines.push(optRow(state, t("opcoes.tour"), [state.draft.tourEnabled ? chip(t("opcoes.tourOn"), true) : chip(t("opcoes.tourOff"), true)], 7, stageUses(state.missionStage, "tour")));
+    lines.push("");
+    lines.push(optRow(state, t("opcoes.headed"), [state.draft.headed ? chip(t("opcoes.headedOn"), true) : chip(t("opcoes.headedOff"), true)], 8, stageUses(state.missionStage, "headed")));
     lines.push("");
     const prod = state.draft.continueOnProduto
       ? chip(t("opcoes.continueProdutoOn"), true)
       : chip(t("opcoes.continueProdutoOff"), true);
-    lines.push(choiceRow(t("opcoes.continueProduto"), [prod], state.field === 7, t("help.space")));
+    lines.push(optRow(state, t("opcoes.continueProduto"), [prod], 9, stageUses(state.missionStage, "continueOnProduto")));
     lines.push("");
     const ret = state.draft.retestQuarantine ? chip(t("opcoes.retestOn"), true) : chip(t("opcoes.retestOff"), true);
-    lines.push(choiceRow(t("opcoes.retest"), [ret], state.field === 8, t("help.space")));
+    lines.push(optRow(state, t("opcoes.retest"), [ret], 10, stageUses(state.missionStage, "retest")));
     lines.push("");
-    lines.push(...inputField(t("opcoes.grep"), state.draft.grep, state.field === 9, width));
+    lines.push(...inputField(t("opcoes.grep"), state.draft.grep, state.field === 11, width));
+    if (!stageUses(state.missionStage, "grep")) {
+      lines.push(ink(`  ${t("opcoes.skipped")}`, theme.warn));
+    }
     lines.push("");
     lines.push(...evidenceBlock(id, width));
     return lines;
@@ -1231,7 +1275,27 @@ function tabBody(state: State, id: StepId, width: number, bodyRows: number): str
 }
 
 function opcoesFieldCount(): number {
-  return 10;
+  return 12;
+}
+
+function stageNoteKey(stage: MissionStage): MsgKey {
+  if (stage === "map-roteiro") return "opcoes.note.map-roteiro";
+  if (stage === "scripts") return "opcoes.note.scripts";
+  if (stage === "tests-only") return "opcoes.note.tests-only";
+  return "opcoes.note.full";
+}
+
+function regenLabel(stage: MissionStage, on: boolean): string {
+  if (stage === "map-roteiro") return t(on ? "opcoes.regen.map-roteiro.on" : "opcoes.regen.map-roteiro.off");
+  if (stage === "scripts") return t(on ? "opcoes.regen.scripts.on" : "opcoes.regen.scripts.off");
+  if (stage === "tests-only") return t("opcoes.regen.tests-only.off");
+  return t(on ? "opcoes.regen.full.on" : "opcoes.regen.full.off");
+}
+
+function optRow(state: State, label: string, chips: string[], field: number, applies: boolean): string {
+  const hint = applies ? t("help.space") : `${t("help.space")} · ${t("opcoes.skipped")}`;
+  const row = choiceRow(label, chips, state.field === field, hint);
+  return row;
 }
 
 function draftAsOptions(state: State): OptionsDraft {
@@ -1245,6 +1309,8 @@ function draftAsOptions(state: State): OptionsDraft {
     tourEnabled: state.draft.tourEnabled,
     headed: state.draft.headed,
     grep: state.draft.grep,
+    missionStage: state.missionStage,
+    regenerate: state.regenerate,
   };
 }
 
@@ -1308,7 +1374,7 @@ function activeDraft(state: State): { get: () => string; set: (v: string) => voi
     return undefined;
   }
   if (id === "opcoes") {
-    if (state.field === 9) return { get: () => state.draft.grep, set: (v) => { state.draft.grep = v; } };
+    if (state.field === 11) return { get: () => state.draft.grep, set: (v) => { state.draft.grep = v; } };
     return undefined;
   }
   if (id === "credenciais") {
@@ -1496,7 +1562,8 @@ async function runApp(state: State): Promise<void> {
     state.flashErr = true;
     return;
   }
-  const body = buildRunBody(state.regenerate, state.missionStage);
+  const regen = stageUses(state.missionStage, "regenerate") && state.regenerate;
+  const body = buildRunBody(regen, state.missionStage);
   state.running = true;
   state.log = [];
   clearAgentTelemetry();
@@ -1507,7 +1574,7 @@ async function runApp(state: State): Promise<void> {
   state.runTelemetry = { phase: "Preparacao", detail: t("app.runStarting") };
   state.flash = t("app.running");
   state.flashErr = false;
-  addEvidence("app", t("app.start", { regen: String(state.regenerate), url: body.baseUrl ?? "" }));
+  addEvidence("app", t("app.start", { regen: String(regen), url: body.baseUrl ?? "" }));
   paint(state, true);
   try {
     const run = await startRun(body, {
@@ -1939,25 +2006,49 @@ export async function runTui(): Promise<void> {
           return;
         }
 
+        if (
+          id === "opcoes" &&
+          state.field === 1 &&
+          (key.type === "left" || key.type === "right" || (key.type === "char" && "1234".includes(key.ch)))
+        ) {
+          if (key.type === "char") state.missionStage = MISSION_STAGES[Number(key.ch) - 1]!;
+          else state.missionStage = cycleMissionStage(state.missionStage, key.type === "right" ? 1 : -1);
+          rememberMission(state);
+          paint(state);
+          return;
+        }
+
         if (id === "opcoes" && key.type === "char" && key.ch === " ") {
+          if (state.field === 2) {
+            if (!stageUses(state.missionStage, "regenerate")) {
+              state.flash = t("opcoes.regenIgnored");
+              state.flashErr = false;
+              paint(state);
+              return;
+            }
+            state.regenerate = !state.regenerate;
+            rememberMission(state);
+            paint(state);
+            return;
+          }
           const opts = draftAsOptions(state);
-          if (state.field === 1) applyRunAll(opts, !opts.runAll);
-          else if (state.field === 2) opts.autoResume = !opts.autoResume;
-          else if (state.field === 3) {
+          if (state.field === 3) applyRunAll(opts, !opts.runAll);
+          else if (state.field === 4) opts.autoResume = !opts.autoResume;
+          else if (state.field === 5) {
             opts.k6Enabled = !opts.k6Enabled;
             syncRunAllFlag(opts);
-          } else if (state.field === 4) {
+          } else if (state.field === 6) {
             opts.massaEnabled = !opts.massaEnabled;
             syncRunAllFlag(opts);
-          } else if (state.field === 5) {
+          } else if (state.field === 7) {
             opts.tourEnabled = !opts.tourEnabled;
             syncRunAllFlag(opts);
-          } else if (state.field === 6) {
+          } else if (state.field === 8) {
             opts.headed = !opts.headed;
             syncRunAllFlag(opts);
-          } else if (state.field === 7) {
+          } else if (state.field === 9) {
             opts.continueOnProduto = !opts.continueOnProduto;
-          } else if (state.field === 8) {
+          } else if (state.field === 10) {
             opts.retestQuarantine = !opts.retestQuarantine;
           }
           applyOptionsToDraft(state, opts);
@@ -2027,24 +2118,6 @@ export async function runTui(): Promise<void> {
               return;
             }
           }
-          paint(state);
-          return;
-        }
-
-        if (id === "app" && key.type === "char" && "1234".includes(key.ch)) {
-          state.missionStage = MISSION_STAGES[Number(key.ch) - 1]!;
-          paint(state);
-          return;
-        }
-
-        if (id === "app" && (key.type === "left" || key.type === "right")) {
-          state.missionStage = cycleMissionStage(state.missionStage, key.type === "right" ? 1 : -1);
-          paint(state);
-          return;
-        }
-
-        if (id === "app" && key.type === "char" && (key.ch === "r" || key.ch === "R")) {
-          state.regenerate = !state.regenerate;
           paint(state);
           return;
         }

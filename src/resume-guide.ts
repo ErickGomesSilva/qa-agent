@@ -52,7 +52,7 @@ function reuseLines(a: ResumeArtifacts, opts?: { skipLogic?: boolean; skipTour?:
   if (a.hasRoteiro) out.push("ROTEIRO.json — reutilizado (ou só refaz se CAs mudaram)");
   else out.push("Roteiro — ainda não existe; será montado na próxima rodada");
   if (a.specCount > 0) {
-    out.push(`${a.specCount} spec(s) — NÃO reescritos (Enter sem R)`);
+    out.push(`${a.specCount} spec(s) — NÃO reescritos (F7 Refazer = não)`);
   } else {
     out.push("Specs — ainda não há *.spec.ts; generate/lógica podem rodar de novo");
   }
@@ -97,7 +97,7 @@ function buildFatalGuide(
       reuse,
       actions: [
         "Confira cota/rede/modelo na F1–F2 (e o runId no painel Cursor, se houver)",
-        "F8 → Enter SEM R — reaproveita mapa/roteiro/specs já gravados",
+        "F8 → Enter F7 Refazer = não — reaproveita mapa/roteiro/specs já gravados",
         artifacts.specCount
           ? "Com specs no disco, a geração costuma ser pulada; o gargalo tende a ser lógica/triagem"
           : "Sem specs ainda: a lógica/generate pode rodar de novo — desligue tour/massa no F7 para enxugar",
@@ -115,7 +115,7 @@ function buildFatalGuide(
       reuse,
       actions: [
         "No terminal da instalação: npx playwright install chromium",
-        "F8 → Enter SEM R depois que o Chromium estiver ok",
+        "F8 → Enter F7 Refazer = não depois que o Chromium estiver ok",
         "Detalhe: scripts/falhas/FALHA-FATAL.md",
       ],
       avoid,
@@ -132,7 +132,7 @@ function buildFatalGuide(
       ],
       actions: [
         "Revise F4 (URL) e F5 (logins/arquivo de credenciais)",
-        "F8 → Enter SEM R",
+        "F8 → Enter F7 Refazer = não",
         "Detalhe: scripts/falhas/FALHA-FATAL.md",
       ],
       avoid,
@@ -146,7 +146,7 @@ function buildFatalGuide(
       reuse,
       actions: [
         "Confira F3 (requisitos) e se ROTEIRO.json tem linhas úteis (F9 / pasta falhas)",
-        "F8 → Enter SEM R para tentar generate de novo (mapa/roteiro reaproveitam se fingerprint bater)",
+        "F8 → Enter F7 Refazer = não para tentar generate de novo (mapa/roteiro reaproveitam se fingerprint bater)",
         "Se o roteiro estiver vazio/errado: ajuste F5/escopo ou use R só se precisar forçar mapa+roteiro",
         "Detalhe: scripts/falhas/FALHA-FATAL.md",
       ],
@@ -161,7 +161,7 @@ function buildFatalGuide(
       reuse,
       actions: [
         "Atualize o QA Agent (instalador) — versões novas corrigem vários ERRO_FERRAMENTA",
-        "F8 → Enter SEM R",
+        "F8 → Enter F7 Refazer = não",
         "Se persistir: abra FALHA-FATAL.md e o run.json em data/runs/",
       ],
       avoid,
@@ -176,7 +176,7 @@ function buildFatalGuide(
       actions: [
         "Veja quarentena/★ na F9 (casos que não fecharam)",
         "Corrija os specs problemáticos ou ligue «retestar quarentena» na F7 se fizer sentido",
-        "F8 → Enter SEM R para nova missão enxuta (grep na F7)",
+        "F8 → Enter F7 Refazer = não para nova missão enxuta (grep na F7)",
       ],
       avoid,
     };
@@ -188,7 +188,7 @@ function buildFatalGuide(
     reuse,
     actions: [
       "Leia scripts/falhas/FALHA-FATAL.md (onde parou + próximos passos)",
-      "Corrija a causa e F8 → Enter SEM R para reaproveitar mapa/specs",
+      "Corrija a causa e F8 → Enter F7 Refazer = não para reaproveitar mapa/specs",
     ],
     avoid,
   };
@@ -214,7 +214,7 @@ function triageGuide(
         run.autoResumeOnTeste && run.triage?.corrigiuTeste
           ? "Auto-resume já tentou corrigir; se parou aqui, revise o spec manualmente"
           : "Revise/ajuste o *.spec.ts indicado no log / COBERTURA",
-        "F8 → Enter SEM R — Playwright recomeça do grep (casos ★/produto ficam invertidos se gravados)",
+        "F8 → Enter F7 Refazer = não — Playwright recomeça do grep (casos ★/produto ficam invertidos se gravados)",
         "F9 → Matriz / Problemas para ver o caso",
       ],
       avoid,
@@ -228,7 +228,7 @@ function triageGuide(
       reuse,
       actions: [
         "Trate o bug no produto (webhook pode ter avisado)",
-        "Para seguir a suíte sem parar de novo: F7 → «seguir após PRODUTO» = sim, depois F8 Enter SEM R",
+        "Para seguir a suíte sem parar de novo: F7 → «seguir após PRODUTO» = sim, depois F8 Enter F7 Refazer = não",
         "F9 → Matriz mostra o achado; detalhe em PRODUTO.json / COBERTURA",
       ],
       avoid,
@@ -243,7 +243,7 @@ function triageGuide(
       actions: [
         "Ajuste scripts/massa/dados.json (ou rode qaagent-massa / F7 massa)",
         "Confira se o perfil F5 casa com o caso (ROTEIRO / loginAs)",
-        "F8 → Enter SEM R",
+        "F8 → Enter F7 Refazer = não",
         "F9 → 5 Problemas se houver bloqueio de massa",
       ],
       avoid,
@@ -258,7 +258,7 @@ function triageGuide(
       actions: [
         "Leia scripts/falhas/AVISO-AMBIENTE.md e TRIAGEM.json",
         "Corrija VPN, URL, permissão, Chromium ou a própria ferramenta",
-        "F8 → Enter SEM R — mapa/specs permanecem",
+        "F8 → Enter F7 Refazer = não — mapa/specs permanecem",
       ],
       avoid,
     };
@@ -271,7 +271,7 @@ function triageGuide(
     actions: [
       "Abra o log Playwright em falhas/ e o vídeo/trace se houver",
       "Rode de novo headed (F7) ou foque o grep no caso",
-      "F8 → Enter SEM R",
+      "F8 → Enter F7 Refazer = não",
     ],
     avoid,
   };
@@ -316,7 +316,7 @@ export function buildResumeGuide(
         skipTour: true,
       }),
       actions: [
-        "F8 → Enter SEM R — lê CONTINUAR.md e costuma pular lógica/jornada",
+        "F8 → Enter F7 Refazer = não — lê CONTINUAR.md e costuma pular lógica/jornada",
         "Mapa/roteiro/specs: reaproveitados se já existirem",
         "Para recomeçar limpo: apague CONTINUAR.md e CONTINUAR.json",
         artifacts.hasContinuar
@@ -352,7 +352,7 @@ export function buildResumeGuide(
       reuse: reuseLines(artifacts),
       actions: [
         "Nada obrigatório — F9 para relatórios",
-        "Próxima Enter na F8 (sem R) reaproveita mapa/specs se fingerprint bater",
+        "Próxima Enter na F8 (F7 Refazer = não) reaproveita mapa/specs se fingerprint bater",
       ],
       avoid: baseAvoid(),
     };
@@ -364,7 +364,7 @@ export function buildResumeGuide(
       reuse: reuseLines(artifacts),
       actions: [
         "F9 → Matriz / Problemas para priorizar correções no produto",
-        "Nova missão: F8 Enter SEM R (achados ficam na matriz)",
+        "Nova missão: F8 Enter F7 Refazer = não (achados ficam na matriz)",
       ],
       avoid: baseAvoid(),
     };
@@ -382,9 +382,9 @@ export function buildResumeGuide(
           ? [
               "Veja K6-RESUMO na F9 / scripts/falhas",
               "Ajuste smoke k6 ou desligue k6 no F7 se não for o foco",
-              "F8 Enter SEM R para nova missão E2E (mapa/specs intactos)",
+              "F8 Enter F7 Refazer = não para nova missão E2E (mapa/specs intactos)",
             ]
-          : ["F9 para relatórios", "F8 Enter SEM R quando quiser outra rodada"],
+          : ["F9 para relatórios", "F8 Enter F7 Refazer = não quando quiser outra rodada"],
       avoid: baseAvoid(),
     };
   } else if (run.stuckCases?.length) {
@@ -396,7 +396,7 @@ export function buildResumeGuide(
       actions: [
         "F9 → Quarentena / Matriz (★)",
         "Corrija os specs ou habilite reteste de quarentena no F7",
-        "F8 Enter SEM R",
+        "F8 Enter F7 Refazer = não",
       ],
       avoid: baseAvoid(),
     };
@@ -407,7 +407,7 @@ export function buildResumeGuide(
       situation: error ? error.slice(0, 160) : `Rodada encerrou como «${status}».`,
       reuse: reuseLines(artifacts),
       actions: [
-        "F8 → Enter SEM R para nova missão reaproveitando artefatos",
+        "F8 → Enter F7 Refazer = não para nova missão reaproveitando artefatos",
         "F9 para relatórios / problemas",
       ],
       avoid: baseAvoid(),

@@ -24,7 +24,7 @@ describe("resume-guide", () => {
       artifacts,
     );
     assert.equal(guide.kind, "fatal_agent");
-    assert.ok(guide.actions.some((a) => /Enter SEM R/i.test(a)));
+    assert.ok(guide.actions.some((a) => /F7 Refazer = não/i.test(a)));
     assert.ok(guide.reuse.some((r) => /3 spec/i.test(r)));
     const term = formatResumeGuideTerminal(guide);
     assert.ok(term.some((l) => /Como retomar/i.test(l)));

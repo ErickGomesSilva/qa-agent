@@ -37,7 +37,7 @@ Your API key stays on your machine. The agent runtime is **local**, so it can re
 3. **F1**: paste your API key. **F2**: pick a model.
 4. **F3**: point to the folder (or Git URL) with your requirements, written in the [requirement format](#requirement-format).
 5. **F4**: the app URL. **F5**: at least one login.
-6. **F8**: press **Enter** to start a full run. Watch telemetry there and the LLM feed on **F10**.
+6. **F7**: pick the stage (Full, Map+route, Scripts, or Tests) and press Enter to save. **F8**: press **Enter** to start that stage. Watch telemetry there and the LLM feed on **F10**.
 7. When it ends, read **F9 → 5 Problems** (`PROBLEMAS.md`) and the **How to resume** block (`RETOMAR.md`).
 
 ## Requirements
@@ -135,16 +135,18 @@ Rules the parser relies on:
 | F4 | URL | App under test |
 | F5 | Login | 1–10 accounts, or a `.md` / `.json` file |
 | F6 | Notify | Webhook (optional; confirmed app bugs, not test errors) |
-| F7 | Options | **Run all**, k6, mass, tour, headed, grep, locale, continue after PRODUTO, retest quarantine |
-| F8 | Mission | Stage via **1–4** (Full, Map+route, Scripts, Tests) + live telemetry. **R** on stage 2 recrawls; on stage 3 rewrites specs without a crawl |
+| F7 | Options | Stage (**1–4**), **Redo**, run all, k6, mass, tour, headed, grep, locale, continue after PRODUTO, retest quarantine |
+| F8 | Mission | Starts the stage saved on F7 and shows telemetry. It does not change configuration |
 | F9 | Consult | **1** reports · **2** matrix · **3** quarantine · **4** journeys · **5** problems |
 | F10 | Agent | Live LLM feed (tools, text, rounds) · shows **● SESSION ACTIVE** / **○ SESSION ENDED** with duration · **End** follow live · **C** clear |
 
-Enter saves the tab. On F8, Enter starts a run. **P** or **Esc** during a run pauses at the next checkpoint; **Esc** while idle quits; **Ctrl+C** kills the process. Without a TTY the tool falls back to `qaagent --plain`.
+Enter saves the tab. On F8, Enter starts the stage saved on F7. **P** or **Esc** during a run pauses at the next checkpoint; **Esc** while idle quits; **Ctrl+C** kills the process. Without a TTY the tool falls back to `qaagent --plain`.
 
 **F3 — Git:** GitHub, Gitea/Forgejo/Codeberg (`/src/branch/…`), Azure DevOps (`_git/…?path=`), GitLab (`/-/tree/…`), Bitbucket, or `https://host/repo.git docs/requisitos`. Private repo: **Tab** to the second F3 field and paste the token — the tool stores `QA_GIT_TOKEN` in `.env` (do not put the PAT in the URL). The clone lives in `data/cache/git/` and is refreshed each run.
 
 **F3 — MCP:** see [Project managers (MCP)](#project-managers-mcp).
+
+**F7 — Stage** (keys 1–4 or ←→): Full, Map+route, Scripts, or Tests. **Redo** means a different thing on each stage (recrawl, rewrite specs, or ignored on Tests). Options the stage does not run are marked "does not run on this stage". F8 lists what will run and what is on in F7 but will be skipped.
 
 **F7 — Run all = yes** turns on k6, runtime mass, browser tour, and a visible browser (headed + video). Individual toggles stay available. Space flips a switch; Enter persists to `.env` + `data/settings.json`.
 
@@ -155,20 +157,20 @@ A **full** run does, in order:
 1. Sync `requisitos/` (and write `SYNC-DIFF.json`: new / changed / orphan CAs).
 2. **Per-profile map** (Playwright, no LLM) → `MAPA-PERFIL.json`. One crawl per F5 account; records menu, visible/missing controls and same-origin HTTP **401/403** (not only 5xx).
 3. **Join** requirements ∩ map ∩ F5 labels → `ROTEIRO.json` (`us`, `ca`, `perfil`, `onde`, `fazer`, `esperado`, `specHint`).
-4. **Generate** specs from roteiro + map + requirements. Skipped if specs already exist, unless you press **R**.
+4. **Generate** specs from roteiro + map + requirements. Skipped if specs already exist, unless **Redo** is on in F7.
 5. Audit, runtime mass, Playwright, triage.
 6. Reports: `COBERTURA-RESUMO-<slug>.md` + **`PROBLEMAS.md`** (blockers, failures, product bugs, HTTP 4xx from the map, CAs without spec, stubs).
 7. On a **fatal** error (agent crashed, loop limit…): `FALHA-FATAL.md` with where it stopped and next steps.
-8. On **every** outcome: `RETOMAR.md` + a **How to resume** block in telemetry (what can be reused, what the next Enter does — usually without **R**).
-9. **Pause** (P / Esc): stops at the next checkpoint and writes `CONTINUAR.md`. Enter on F8 resumes.
+8. On **every** outcome: `RETOMAR.md` + a **How to resume** block in telemetry (what can be reused, what the next Enter does — usually with **Redo = no** on F7).
+9. **Pause** (P / Esc): stops at the next checkpoint and writes `CONTINUAR.md`. Enter on F8 resumes, with **Redo = no** on F7.
 
-### Stages (F8 keys 1–4)
+### Stages (F7 keys 1–4)
 
 | Key | Stage | Runs | Stops after |
 |---|---|---|---|
 | 1 | Full | Everything above | Reports |
 | 2 | Map+route | Steps 1–3 | `ROTEIRO.json` |
-| 3 | Scripts | Steps 1–4; **R** rewrites specs without a new crawl | Specs written (no Playwright) |
+| 3 | Scripts | Steps 1–4; **Redo** rewrites specs without a new crawl | Specs written (no Playwright) |
 | 4 | Tests | Playwright + triage on existing specs | Reports. Fails if `scripts/tests` is empty |
 
 ### Reusing map and roteiro
@@ -180,10 +182,11 @@ A **full** run does, in order:
 | Same fingerprints as last run | **Reuse** map and roteiro (no new crawl) |
 | Only requirements / CAs changed | **Reuse the map**, rebuild only the roteiro |
 | URL, F5, scope or crawl depth changed (or old file without fingerprint) | Rebuild map + roteiro |
-| **R** on Full or Map+route | **Force** a new crawl |
-| **R** on Scripts | Rewrite specs, **reuse** the map |
+| **Redo** on Full or Map+route | **Force** a new crawl |
+| **Redo** on Scripts | Rewrite specs, **reuse** the map |
+| **Redo** on Tests | Ignored |
 
-A UI-only change in the product (same URL / F5 / requirements) does **not** invalidate the cache — press **R**.
+A UI-only change in the product (same URL / F5 / requirements) does **not** invalidate the cache — turn **Redo** on in F7 on Full or Map+route.
 
 ### Focused runs
 
@@ -340,8 +343,8 @@ Listens on `127.0.0.1:8787`. `POST /v1/runs` accepts `{ requisitosPath, baseUrl,
 | F3 Git URL fails | Install Git and make sure it is on PATH; for private repos put the token in the second F3 field, not in the URL |
 | `ECONNRESET` from the agent on Windows | Keep `CURSOR_USE_HTTP1=true` (default) in `.env` |
 | Specs fail at login, or log in but land on the wrong company / account | Set `E2E_LOGIN_PATH`, `E2E_HOME_PATH` and `E2E_CONTEXT` in `.env` (see [Credentials and secrets](#credentials-and-secrets)) |
-| App UI changed but the run reuses the old map | Press **R** on stage 1 or 2 |
-| Stage 4 says there are no specs | Run stage 3 (Scripts) first |
+| App UI changed but the run reuses the old map | F7: stage Full or Map+route and **Redo** = yes |
+| Tests stage says there are no specs | F7: stage Scripts, then F8 Enter |
 | `qaagent --clean` fails with "Sem TTY" | Add `--yes` |
 | Suite stops with AMBIENTE | Read `AVISO-AMBIENTE.md`; it is an infra / tool problem, not an app bug |
 

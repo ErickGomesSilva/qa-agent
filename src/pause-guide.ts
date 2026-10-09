@@ -132,7 +132,7 @@ export function buildContinuarGuide(
   const whereStopped = `Pausa do usuário na fase «${lastPhase}» (status ${run.status}). Playwright: ${run.rounds} rodada(s).`;
 
   const howToResume = [
-    "Na F8, pressione Enter (sem R regenerate) para retomar.",
+    "Na F8, pressione Enter para retomar. Na F7, deixe Refazer = não.",
     "Mapa/roteiro: reutilizados se o fingerprint ainda bater.",
     "Specs existentes: não são reescritos (salvo R regenerate).",
     resume.skipLogicAgent

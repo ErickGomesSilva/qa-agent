@@ -37,7 +37,7 @@ A chave da API fica na sua máquina. O runtime do agente é **local**, então al
 3. **F1**: cole a chave da API. **F2**: escolha o modelo.
 4. **F3**: aponte a pasta (ou URL Git) com os requisitos, escritos no [formato esperado](#formato-dos-requisitos).
 5. **F4**: URL da aplicação. **F5**: pelo menos um login.
-6. **F8**: **Enter** inicia a missão completa. Acompanhe a telemetria ali e o feed do LLM na **F10**.
+6. **F7**: escolha a etapa (Completa, Mapa+roteiro, Scripts ou Testes) e grave com Enter. **F8**: **Enter** inicia essa etapa. Acompanhe a telemetria ali e o feed do LLM na **F10**.
 7. Ao terminar, leia **F9 → 5 Problemas** (`PROBLEMAS.md`) e o bloco **Como retomar** (`RETOMAR.md`).
 
 ## Requisitos de ambiente
@@ -135,16 +135,18 @@ Regras de que o parser depende:
 | F4 | URL | Aplicação sob teste |
 | F5 | Login | 1–10 contas ou arquivo `.md` / `.json` |
 | F6 | Webhook | Opcional; avisa bug confirmado na aplicação (não erro de teste) |
-| F7 | Opções | **Rodar tudo**, k6, massa, jornada, headed, grep, idioma, seguir após PRODUTO, retestar quarentena |
-| F8 | Missão | Etapa com **1–4** (Completa, Mapa+roteiro, Scripts, Testes) e telemetria. **R** na etapa 2 refaz o crawl; na 3 reescreve specs sem crawl |
+| F7 | Opções | Etapa (**1–4**), **Refazer**, rodar tudo, k6, massa, jornada, headed, grep, idioma, seguir após PRODUTO, retestar quarentena |
+| F8 | Missão | Só inicia a etapa gravada na F7 e mostra telemetria. Não muda configuração |
 | F9 | Consulta | **1** relatórios · **2** matriz · **3** quarentena · **4** jornadas · **5** problemas |
 | F10 | Agente | Feed ao vivo do LLM (tools, texto, rounds) · indica **● SESSÃO ATIVA** / **○ SESSÃO ENCERRADA** com duração · **End** segue ao vivo · **C** limpa |
 
-Enter grava a aba. Na F8, Enter inicia a rodada. **P** ou **Esc** durante a rodada pausa no próximo checkpoint; **Esc** com a rodada parada sai do TUI; **Ctrl+C** encerra o processo. Sem TTY a ferramenta cai no `qaagent --plain`.
+Enter grava a aba. Na F8, Enter inicia a etapa que está na F7. **P** ou **Esc** durante a rodada pausa no próximo checkpoint; **Esc** com a rodada parada sai do TUI; **Ctrl+C** encerra o processo. Sem TTY a ferramenta cai no `qaagent --plain`.
 
 **F3 — Git:** GitHub, Gitea/Forgejo/Codeberg (`/src/branch/…`), Azure DevOps (`_git/…?path=`), GitLab (`/-/tree/…`), Bitbucket ou `https://host/repo.git docs/requisitos`. Repo privado: **Tab** no segundo campo da F3 e cole o token — a ferramenta grava `QA_GIT_TOKEN` no `.env` (não cole o PAT na URL). O clone fica em `data/cache/git/` e atualiza a cada missão.
 
 **F3 — MCP:** ver [Gestores de projeto (MCP)](#gestores-de-projeto-mcp).
+
+**F7 — Etapa** (teclas 1–4 ou ←→): Completa, Mapa+roteiro, Scripts ou Testes. **Refazer** muda de sentido conforme a etapa (crawl, reescrita de specs, ou ignorado em Testes). Opções que a etapa não executa aparecem com “não roda nesta etapa”. A F8 lista o que vai rodar e o que está ligado na F7 mas será ignorado.
 
 **F7 — Rodar tudo = SIM** liga k6, massa, jornada e navegador visível (headed + vídeo). Os interruptores individuais continuam disponíveis. Espaço alterna; Enter grava em `.env` + `data/settings.json`.
 
@@ -155,20 +157,20 @@ A missão **completa** faz, nesta ordem:
 1. Sincroniza `requisitos/` (e grava `SYNC-DIFF.json`: CAs novos / alterados / órfãos).
 2. **Mapa por perfil** (Playwright, sem LLM) → `MAPA-PERFIL.json`. Um crawl por conta da F5; registra menu, controles visíveis/ausentes e HTTP **401/403** same-origin (não só 5xx).
 3. **Join** requisitos ∩ mapa ∩ labels F5 → `ROTEIRO.json` (`us`, `ca`, `perfil`, `onde`, `fazer`, `esperado`, `specHint`).
-4. **Gera** specs a partir de roteiro + mapa + requisitos. Pulado se já existirem specs, salvo **R**.
+4. **Gera** specs a partir de roteiro + mapa + requisitos. Pulado se já existirem specs, salvo **Refazer** na F7.
 5. Auditoria, massa, Playwright, triagem.
 6. Relatórios: `COBERTURA-RESUMO-<slug>.md` + **`PROBLEMAS.md`** (bloqueios, falhas, bugs de produto, HTTP 4xx do mapa, CAs sem spec, stubs).
 7. Em **erro fatal** (agente caiu, limite de loops…): `FALHA-FATAL.md` com onde parou e próximos passos.
-8. Em **qualquer** desfecho: `RETOMAR.md` + bloco **Como retomar** na telemetria (o que reaproveitar e o que o próximo Enter faz — quase sempre sem **R**).
-9. **Pausa** (P / Esc): para no próximo checkpoint e grava `CONTINUAR.md`. Enter na F8 retoma.
+8. Em **qualquer** desfecho: `RETOMAR.md` + bloco **Como retomar** na telemetria (o que reaproveitar e o que o próximo Enter faz — quase sempre com **Refazer = não** na F7).
+9. **Pausa** (P / Esc): para no próximo checkpoint e grava `CONTINUAR.md`. Enter na F8 retoma, com **Refazer = não** na F7.
 
-### Etapas (F8, teclas 1–4)
+### Etapas (F7, teclas 1–4)
 
 | Tecla | Etapa | Executa | Para depois de |
 |---|---|---|---|
 | 1 | Completa | Tudo acima | Relatórios |
 | 2 | Mapa+roteiro | Passos 1–3 | `ROTEIRO.json` |
-| 3 | Scripts | Passos 1–4; **R** reescreve specs sem novo crawl | Specs gravados (sem Playwright) |
+| 3 | Scripts | Passos 1–4; **Refazer** reescreve specs sem novo crawl | Specs gravados (sem Playwright) |
 | 4 | Testes | Playwright + triagem nos specs existentes | Relatórios. Falha se `scripts/tests` estiver vazio |
 
 ### Reuso de mapa e roteiro
@@ -180,10 +182,11 @@ A missão **completa** faz, nesta ordem:
 | Fingerprints iguais aos da rodada anterior | **Reutiliza** mapa e roteiro (sem novo crawl) |
 | Só requisitos/CAs mudaram | **Reutiliza o mapa**, refaz só o roteiro |
 | URL, F5, escopo ou crawl mudaram (ou arquivo antigo sem fingerprint) | Refaz mapa + roteiro |
-| **R** na etapa Completa ou Mapa+roteiro | **Força** novo crawl |
-| **R** na etapa Scripts | Reescreve specs, **reusa** o mapa |
+| **Refazer** na etapa Completa ou Mapa+roteiro | **Força** novo crawl |
+| **Refazer** na etapa Scripts | Reescreve specs, **reusa** o mapa |
+| **Refazer** na etapa Testes | Ignorado |
 
-Mudança só na UI do app (mesma URL / F5 / requisitos) **não** invalida o cache — use **R**.
+Mudança só na UI do app (mesma URL / F5 / requisitos) **não** invalida o cache — ligue **Refazer** na F7 na etapa Completa ou Mapa+roteiro.
 
 ### Rodada focada
 
@@ -340,8 +343,8 @@ Escuta em `127.0.0.1:8787`. `POST /v1/runs` aceita `{ requisitosPath, baseUrl, a
 | URL Git na F3 falha | Instale o Git e confira se está no PATH; em repo privado o token vai no segundo campo da F3, não na URL |
 | `ECONNRESET` do agente no Windows | Mantenha `CURSOR_USE_HTTP1=true` (padrão) no `.env` |
 | Specs falham no login, ou entram mas caem na empresa / conta errada | Defina `E2E_LOGIN_PATH`, `E2E_HOME_PATH` e `E2E_CONTEXT` no `.env` (ver [Credenciais e segredos](#credenciais-e-segredos)) |
-| A UI do app mudou mas a rodada reusa o mapa antigo | **R** na etapa 1 ou 2 |
-| Etapa 4 diz que não há specs | Rode antes a etapa 3 (Scripts) |
+| A UI do app mudou mas a rodada reusa o mapa antigo | F7: etapa Completa ou Mapa+roteiro e **Refazer** = sim |
+| Etapa Testes diz que não há specs | F7: etapa Scripts, depois F8 Enter |
 | `qaagent --clean` falha com "Sem TTY" | Adicione `--yes` |
 | A suíte para com AMBIENTE | Leia `AVISO-AMBIENTE.md`; é problema de infra / ferramenta, não bug do app |
 

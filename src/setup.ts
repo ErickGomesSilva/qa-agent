@@ -280,6 +280,7 @@ export function getSteps(): StepView[] {
       title: t("tab.opcoes"),
       done: true,
       summary: t("step.opcoes", {
+        stage: t(missionStageMsgKey(s.missionStage ?? "full")),
         all: (s.runAllOptional ?? (config.k6Enabled && config.massaGenerateEnabled && config.tourEnabled && config.playwrightHeaded))
           ? t("common.yes")
           : t("common.no"),
@@ -612,6 +613,9 @@ export function saveLocale(locale: Locale): void {
   if (changed) addEvidence("opcoes", t("opcoes.localeSaved", { locale }));
 }
 
+export const MISSION_STAGES = ["full", "map-roteiro", "scripts", "tests-only"] as const;
+export type MissionStage = (typeof MISSION_STAGES)[number];
+
 export type OptionsDraft = {
   runAll: boolean;
   autoResume: boolean;
@@ -622,6 +626,8 @@ export type OptionsDraft = {
   tourEnabled: boolean;
   headed: boolean;
   grep: string;
+  missionStage: MissionStage;
+  regenerate: boolean;
 };
 
 export function optionalsAllOn(d: Pick<OptionsDraft, "k6Enabled" | "massaEnabled" | "tourEnabled" | "headed">): boolean {
@@ -653,6 +659,8 @@ export function currentOptionsDraft(): OptionsDraft {
     tourEnabled: s.tourEnabled ?? config.tourEnabled,
     headed,
     grep: s.playwrightGrep ?? config.playwrightGrep ?? "@executavel",
+    missionStage: s.missionStage ?? "full",
+    regenerate: s.regenerate ?? false,
   };
   if (s.runAllOptional === true) applyRunAll(d, true);
   else d.runAll = optionalsAllOn(d);
@@ -686,10 +694,14 @@ export function saveOptions(opts: OptionsDraft): void {
     playwrightHeaded: opts.headed,
     runAllOptional: runAll,
     locale: getLocale(),
+    missionStage: opts.missionStage,
+    regenerate: opts.regenerate,
   });
   addEvidence(
     "opcoes",
     t("opcoes.evidence", {
+      stage: t(missionStageMsgKey(opts.missionStage)),
+      regen: opts.regenerate ? t("common.yes") : t("common.no"),
       all: runAll ? t("common.yes") : t("common.no"),
       on: opts.autoResume ? t("opcoes.resumeOnWord") : t("opcoes.resumeOffWord"),
       k6: opts.k6Enabled ? t("opcoes.onWord") : t("opcoes.offWord"),
@@ -704,12 +716,43 @@ export function saveOptions(opts: OptionsDraft): void {
   );
 }
 
-export const MISSION_STAGES = ["full", "map-roteiro", "scripts", "tests-only"] as const;
-export type MissionStage = (typeof MISSION_STAGES)[number];
-
 export function cycleMissionStage(current: MissionStage, dir: 1 | -1): MissionStage {
   const i = Math.max(0, MISSION_STAGES.indexOf(current));
   return MISSION_STAGES[(i + dir + MISSION_STAGES.length) % MISSION_STAGES.length]!;
+}
+
+export type StageToggle =
+  | "regenerate"
+  | "autoResume"
+  | "k6"
+  | "massa"
+  | "tour"
+  | "headed"
+  | "continueOnProduto"
+  | "retest"
+  | "grep";
+
+/**
+ * O que a etapa realmente executa.
+ * Mapa e Scripts não rodam Playwright, k6, massa, jornada, grep, quarentena nem retomada TESTE.
+ * Testes não refaz mapa/specs e não roda a jornada (ela só entra na missão completa).
+ * Navegador visível vale no crawl (mapa/scripts) e no Playwright (completa/testes).
+ */
+export function stageUses(stage: MissionStage, toggle: StageToggle): boolean {
+  if (stage === "full") return true;
+  if (stage === "tests-only") return toggle !== "regenerate" && toggle !== "tour";
+  return toggle === "headed" || toggle === "regenerate";
+}
+
+const STAGE_MSG = {
+  full: "app.stage.full",
+  "map-roteiro": "app.stage.map-roteiro",
+  scripts: "app.stage.scripts",
+  "tests-only": "app.stage.tests-only",
+} as const;
+
+export function missionStageMsgKey(stage: MissionStage): (typeof STAGE_MSG)[MissionStage] {
+  return STAGE_MSG[stage];
 }
 
 export function buildRunBody(regenerate: boolean, mode?: import("./types.ts").RunMode): CreateRunBody {

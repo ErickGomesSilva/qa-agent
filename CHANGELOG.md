@@ -4,7 +4,13 @@ All notable changes to QA Agent. Format based on [Keep a Changelog](https://keep
 
 The repository has no release tags yet: each version below is mapped from the `package.json` version at the time of the commit, and the date is the commit date.
 
-## [Unreleased] — 1.9.0
+## [1.9.1] — 2026-10-09
+
+### Changed
+- Mission stage (Full, Map+route, Scripts, Tests) and Redo live on F7. F8 only starts that stage and shows telemetry plus what the stage will actually run.
+- Options the chosen stage does not execute are marked on F7 and listed on F8 when they are on. Tests skips the tour and Redo. Map and Scripts skip k6, mass, tour, grep, quarantine and continue-after-PRODUCT.
+
+## [1.9.0] — 2026-10-09
 
 ### Added
 - F8 mission stages selected with keys **1–4**: Full, Map+route, Scripts, Tests. **R** on Map+route recrawls; on Scripts rewrites specs without a crawl.

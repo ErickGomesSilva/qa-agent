@@ -33,6 +33,10 @@ export type AppSettings = {
   retestQuarantine?: boolean;
   playwrightHeaded?: boolean;
   runAllOptional?: boolean;
+  /** Etapa da missão escolhida na F7. Ausente = completa. */
+  missionStage?: "full" | "map-roteiro" | "scripts" | "tests-only";
+  /** F7 Refazer. Na etapa testes o orquestrador ignora. */
+  regenerate?: boolean;
   webhookEnabled?: boolean;
   webhookProvider?: WebhookProvider;
   /** @deprecated */
@@ -100,6 +104,14 @@ export function loadSettings(): AppSettings {
     tourEnabled: typeof raw.tourEnabled === "boolean" ? raw.tourEnabled : undefined,
     playwrightHeaded: typeof raw.playwrightHeaded === "boolean" ? raw.playwrightHeaded : undefined,
     runAllOptional: typeof raw.runAllOptional === "boolean" ? raw.runAllOptional : undefined,
+    missionStage:
+      raw.missionStage === "full" ||
+      raw.missionStage === "map-roteiro" ||
+      raw.missionStage === "scripts" ||
+      raw.missionStage === "tests-only"
+        ? raw.missionStage
+        : undefined,
+    regenerate: typeof raw.regenerate === "boolean" ? raw.regenerate : undefined,
     webhookEnabled:
       typeof raw.webhookEnabled === "boolean"
         ? raw.webhookEnabled

@@ -25,10 +25,15 @@ Não apaga .env, settings, nem credenciais.md:
   qaagent --clean --yes    Sem pergunta s/N
   qaagent-clean            Atalho = qaagent --clean
 
+Etapa (na TUI fica na F7; a F8 só inicia):
+  --map-roteiro    Só mapa + roteiro
+  --scripts-only   Gera specs, reusa o mapa
+  --tests-only     Playwright nos specs existentes
+  (sem estas flags = missão completa)
+
 Outros:
   --plain --reconfigure
   --audit-only  --deepen-stubs  --unblock-massa  --tour  --load-only
-  --map-roteiro  --scripts-only  --tests-only
 `);
 }
 

@@ -592,7 +592,7 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
   if (testsOnly) {
     if (listSpecFiles().length === 0) {
       run.status = "error";
-      run.error = "Etapa testes: nenhum spec em scripts/tests. Rode antes a etapa Scripts (F8 tecla 3).";
+      run.error = "Etapa testes: nenhum spec em scripts/tests. Na F7 escolha Scripts, grave e rode na F8.";
       log(run.error);
       saveRun(run);
       return;
@@ -624,7 +624,7 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
   if (mapOnly) {
     run.status = "map_complete";
     log("etapa mapa+roteiro concluída. Specs e Playwright não rodaram.");
-    log("próximo: F8 tecla 3 (Scripts) para gerar os testes sem refazer o crawl.");
+    log("próximo: F7 etapa Scripts, depois F8 Enter, para gerar os testes sem refazer o crawl.");
     saveRun(run);
     return;
   }
@@ -655,7 +655,7 @@ async function loop(run: OrchestratorRun, onLog?: (line: string) => void): Promi
   if (scriptsOnly) {
     run.status = "scripts_complete";
     log("etapa scripts concluída. Agente de lógica, jornada e Playwright não rodaram.");
-    log("próximo: F8 tecla 4 (Testes) para executar os specs sem refazer mapa nem geração.");
+    log("próximo: F7 etapa Testes, depois F8 Enter, para executar os specs sem refazer mapa nem geração.");
     saveRun(run);
     return;
   }
